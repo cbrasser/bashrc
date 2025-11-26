@@ -1,26 +1,112 @@
 @import "tailwindcss";
+@plugin "daisyui";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --fg: #d8dee9;
+  --bg: #1a1e21;
+  --accent_1: #8fbcbb;
+  --accent_2: #bf616a;
+  --accent_3: #ebcb8b;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+
+
+
+
+*:focus {
+  outline: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Range slider styling */
+input[type="range"].opacity-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+input[type="range"].opacity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"].opacity-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+input[type="range"].opacity-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.draggable.border {
+  border: 3px solid var(--accent_1);
 }
