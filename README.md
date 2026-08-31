@@ -3,9 +3,36 @@
 
 ![demo](https://github.com/cbrasser/bashrc/blob/master/demo_screen_newer.png)
 
-# Live version
+## Running it
 
-I'll be pushing a new live version very soon!
+Needs a current node version (18+).
+
+```
+npm install
+npm run dev      # dev server on http://localhost:5173
+npm run build    # production build into dist/
+```
+
+The build output in `dist/` is completely static, so it can be dropped on any
+web host (or used as a local start page via a `file://` url).
+
+### Deploying to vercel
+
+The repository ships a `vercel.json`, so there is nothing to configure: import
+the repo on [vercel.com/new](https://vercel.com/new) and deploy. Vercel runs
+`npm run build` and serves `dist/`. Pushes to `master` go to production, every
+other branch gets a preview deployment.
+
+From the command line it is:
+
+```
+npx vercel        # preview deployment
+npx vercel --prod # production deployment
+```
+
+There is no backend and no environment variable to set: bookmarks, todos and
+settings all live in the browser's local storage, and the weather applet talks
+to open-meteo directly.
 
 ## Open issues
  - shortcuts for 'quitting' and opening applications
@@ -50,7 +77,13 @@ available commands:
 - echo [args]: print [args] to stdout
 - pwd: print current working directory
 - open [path]: open url of file at [path] in new tab
+- locate [query]: search the query on duckduckgo
+- help: list the available commands
 - clear: clear stdout
+
+Bookmark urls may be entered without a protocol, `https://` is added
+automatically. Besides tab completion, the up and down arrow keys cycle through
+the command history.
 
 There is autocompletion for both commands and paths. you can invoke it by starting to type something and then hitting 'tab'. You can cycle through suggestions with tab and accept one with 'enter'. If there is only one suggestion, 'tab' will also work for accepting.
 
@@ -62,9 +95,10 @@ It is completely keyboard based.
 
 #### controls
 
-You can move up and down the content of the current directory with the arrow keys.
-- Right arrow key either enters the selected item if its a directory or opens the url of the file if its a file.
-- Left arrow key goes into the parent directory of the current dir
+You can move up and down the content of the current directory with the arrow
+keys or with 'j' and 'k'.
+- Right arrow key (or 'l' or 'enter') either enters the selected item if its a directory or opens the url of the file if its a file.
+- Left arrow key (or 'h') goes into the parent directory of the current dir
 - input 'f' to add a new file
 - input 'n' to add a new dir
 - input '/' to search in the current dir
@@ -77,7 +111,8 @@ The status bar at the bottom displays the path of the current working directory 
 ### weather 
 
 Just a tiny applet that displays local weather information. you can set your
-city in the settings widget.
+city in the settings widget. It uses the open-meteo api, which needs no
+account and no api key.
 
 ###  todo
 
@@ -93,6 +128,15 @@ The wheel on the bottom right of the page opens the settings. you can select whi
 The background image option needs to be a valid url of an image in oder to work. 
 The colors currently only support hex values
 The opacity needs to be a value from 0 to 1. 
+
+The terminal and the file manager share their working directory, so navigating
+in one of them moves the other one as well.
+
+### Settings: reset
+
+If a stored configuration ever ends up in a broken state, 'reset to defaults' at
+the bottom of the settings panel puts everything back. Bookmarks are not
+touched by this, they are stored separately.
 
 ### Active TODO list
 

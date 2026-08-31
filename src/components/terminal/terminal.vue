@@ -1,13 +1,15 @@
 <template>
-  <div>
+  <div class="terminal" v-on:click="focusInput">
     <prompt
       v-on:input="onCommand"
       v-on:submit="onCommandSubmit"
-      v-bind:suggestions="this.suggestions"
+      v-bind:wd="wdPath"
+      v-bind:suggestions="suggestions"
     />
-    <term-out v-bind:out="this.out" v-on:cd="onCommandSubmit" />
+    <term-out v-bind:out="out" v-on:cd="onCommandSubmit" />
   </div>
 </template>
+
 <script>
 import prompt from "./prompt.vue";
 import termOut from "./term-out.vue";
@@ -21,18 +23,9 @@ export default {
     prompt,
     termOut,
   },
-  watch: {
-    response: function (newResponse, oldVal) {
-      this.out.dirs = newResponse.dirs;
-      this.out.files = newResponse.files;
-      this.out.messages = newResponse.messages;
-    },
-    suggestions: function (newSuggestions, oldVal) {},
-  },
   data: function () {
     return {
       out: { dirs: [], files: [], messages: [] },
-      response: {},
       suggestions: [],
       uptimeStart: new Date().getTime(),
     };
@@ -44,53 +37,29 @@ export default {
     wd() {
       return this.$store.state.workingDirectory;
     },
-  },
-  mounted: function () {
-    this.buildCommands();
-  },
-  methods: {
-    onCommand: function (input) {
-      // Handle autocompletion
-      this.suggest(input);
+    wdPath() {
+      return this.wd ? this.wd.getPath() : "";
     },
-    onCommandSubmit: function (com) {
-      this.out = { dirs: [], files: [], messages: [] };
-      var command = com.split(" ")[0];
-      var args = com.split(" ").slice(1);
-      try {
-        if(this.commands[command]) {
-          this.response = this.commands[command](args);
-          return;
-        }
-        var res = this.fs.call(command, this.wd, args);
-        if (res) {
-          if (res.success) {
-            this.$store.dispatch('updateFileTree', this.fs);
-          }
-          if (res.directory) {
-            this.$store.dispatch('updateWorkingDirectory', res.directory);
-          } else {
-            this.response = res;
-          }
-        }
-      } catch (e) {
-        log("error", e, "red");
-        var res = newResponse();
-        res.messages.push({
-          type: "error",
-          value: `bashrc: command not found: ${command}`,
-        });
-        this.response = res;
-      }
-    },
-    buildCommands: function () {
-      this.commands = {
-        clear: function () {
-          return newResponse();
+    /* Commands that are not part of the file system itself. They are defined
+       here (and not in data) so that `this` is the component. */
+    builtins() {
+      return {
+        help: () => {
+          const res = newResponse();
+          res.messages.push({
+            type: "value",
+            value: `commands: ${this.commandNames.join(", ")}`,
+          });
+          res.messages.push({
+            type: "value",
+            value: "tab completes, up/down cycles through the history",
+          });
+          return res;
         },
-        fetch: function () {
-          var res = newResponse();
-          //res.messages.push({ type: "value", value: user+'@bashrc', css: {"color": "red"}})
+        clear: () => newResponse(),
+        fetch: () => {
+          const res = newResponse();
+          const uptime = Math.floor((Date.now() - this.uptimeStart) / 1000);
           res.messages.push({
             type: "value",
             value: "OS > " + window.navigator.platform,
@@ -98,20 +67,17 @@ export default {
           });
           res.messages.push({
             type: "value",
-            value: "Kernel > bashrc v1.0.1",
+            value: "Kernel > bashrc v2.0.0",
             css: { color: "var(--yellow)" },
           });
-          let seconds = Math.floor(Math.random() * 60);
-          let minutes = Math.floor(Math.random() * 60);
           res.messages.push({
             type: "value",
-            value: `Uptime > ${minutes} minutes - ${seconds} seconds`,
+            value: `Uptime > ${Math.floor(uptime / 60)} minutes - ${uptime % 60} seconds`,
             css: { color: "var(--green)" },
           });
           res.messages.push({
             type: "value",
-            value:
-              "Resolution > " + $(window).width() + "x" + $(window).height(),
+            value: `Resolution > ${window.innerWidth}x${window.innerHeight}`,
             css: { color: "var(--pink)" },
           });
           res.messages.push({
@@ -121,111 +87,151 @@ export default {
           });
           return res;
         },
-        pwd: function () {
-          var res = newResponse();
-          res.messages.push({ type: "value", value: this.wd.getName() });
+        pwd: () => {
+          const res = newResponse();
+          res.messages.push({ type: "value", value: this.wdPath });
           return res;
         },
-        echo: function (args) {
-          var res = newResponse();
+        echo: (args) => {
+          const res = newResponse();
           res.messages.push({ type: "value", value: args.join(" ") });
           return res;
         },
-        locate: function (args) {
-          if (args[0]) {
-            window.open("https://duckduckgo.com/" + args.join(" "));
-          } else {
-            return "Please enter a valid search query";
-          }
-        },
-        open: function (fs, wd, args) {
-          log("open", args);
-          var res = newResponse();
+        locate: (args) => {
+          const res = newResponse();
           if (!args[0]) {
-            res.messages.push({
-              type: "error",
-              value: `open: missing operand`,
-            });
-            return res;
+            return res.error("locate: please enter a search query");
           }
-          var file = fs.getNode(wd, args);
-
+          window.open(
+            `https://duckduckgo.com/?q=${encodeURIComponent(args.join(" "))}`,
+            "_blank"
+          );
+          return res;
+        },
+        open: (args) => {
+          const res = newResponse();
+          if (!args[0]) {
+            return res.error("open: missing operand");
+          }
+          const file = this.fs.getNode(this.wd, args[0]);
           if (!file) {
-            res.messages.push({
-              type: "error",
-              value: `open: cannot open '${args[0]}': No such file or directory`,
-            });
-            return res;
+            return res.error(
+              `open: cannot open '${args[0]}': No such file or directory`
+            );
           }
           if (!file.url) {
-          } else {
-            window.location = file.url;
+            return res.error(`open: '${args[0]}' is a directory`);
           }
-        },
-        getMethods() {
-          var res = [];
-          for (var m in this) {
-            if (typeof this[m] == "function") {
-              res.push(m);
-            }
-          }
+          window.open(file.url, "_blank");
           return res;
         },
       };
     },
-    suggest: function (input) {
-      log("input", input, "green");
-      var content;
-      if (input.length == 0) {
-        this.suggestions = [];
+    commandNames() {
+      return Object.keys(this.builtins).concat(this.fs ? this.fs.api() : []);
+    },
+  },
+  methods: {
+    /* clicking anywhere in the terminal window should put the cursor back
+       into the prompt, like clicking into a real terminal does */
+    focusInput: function () {
+      const input = this.$el.querySelector("#input_field");
+      if (input) {
+        input.focus({ preventScroll: true });
       }
-      //input contains a space, suggesting that the user has already typed a command and
-      //is now typing the arguments
+    },
+    onCommand: function (input) {
+      this.suggest(input);
+    },
+    onCommandSubmit: function (com) {
+      this.suggestions = [];
+      this.showResponse(newResponse());
+      if (!com || com.trim().length == 0) {
+        return;
+      }
+
+      const parts = com.trim().split(/\s+/);
+      const command = parts[0];
+      const args = parts.slice(1);
+
+      if (this.builtins[command]) {
+        this.showResponse(this.builtins[command](args));
+        return;
+      }
+
+      const res = this.fs.call(command, this.wd, args);
+      if (!res) {
+        const notFound = newResponse();
+        notFound.error(`bashrc: command not found: ${command}`);
+        this.showResponse(notFound);
+        return;
+      }
+      // a command that changed the tree has to be written back to the store
+      if (res.success) {
+        this.$store.dispatch("updateFileTree", this.fs);
+      }
+      if (res.directory) {
+        this.$store.dispatch("updateWorkingDirectory", res.directory);
+      }
+      this.showResponse(res);
+    },
+    showResponse: function (res) {
+      if (!res) {
+        return;
+      }
+      this.out = {
+        dirs: res.dirs || [],
+        files: res.files || [],
+        messages: res.messages || [],
+      };
+    },
+    suggest: function (input) {
+      if (!input || input.length == 0) {
+        this.suggestions = [];
+        return;
+      }
+      // a space means the command is typed already and we complete a path
       if (input.indexOf(" ") != -1) {
-        log("Suggesting", "files", "green");
         this.suggestFiles(input);
       } else {
-        log("Suggesting", "commands", "green");
         this.suggestCommands(input);
-        // User has not yet typed a space -> suggest commands or files to open
       }
     },
     suggestCommands: function (input) {
-      var commands = this.commands.getMethods();
-      log("commands", commands);
-      var files = this.wd.getFileNames();
-      this.suggestions = commands
-        .concat(files)
-        .filter((c) => c.substr(0, input.length) == input);
+      const names = this.commandNames.concat(this.wd ? this.wd.getFileNames() : []);
+      this.suggestions = names.filter((c) => c.substr(0, input.length) == input);
     },
     suggestFiles: function (input) {
-      var command = input.split(" ")[0] + " ";
-      var path = input.split(" ").splice(1)[0];
-      log("command", command);
-      log("path", path);
-      var content;
-      // input path contains a separator, search suggestions in last directory of path
+      const path = input.split(/\s+/).slice(1).join(" ");
+      let searchDir = this.wd;
+      let fragment = path || "";
+
       if (path.indexOf(this.fs.separator) != -1) {
-        path = path.substr(0, path.lastIndexOf(this.fs.separator));
-        console.log("path: " + path);
-        var node = this.fs.getNode(this.wd, path);
-        console.log(node.getName());
-        content = node.getChildrenNames();
-      } else {
-        console.log(
-          "path has no separator, suggesting content of current directory"
-        );
-        content = this.wd.getChildrenNames(); //.map(n => ' '+n);
-        console.log("content: " + content);
+        const dirPath = path.substr(0, path.lastIndexOf(this.fs.separator));
+        fragment = path.substr(path.lastIndexOf(this.fs.separator) + 1);
+        searchDir = this.fs.getNode(this.wd, dirPath);
       }
-      this.suggestions = content;
+      if (!searchDir || searchDir.url) {
+        this.suggestions = [];
+        return;
+      }
+      const content = searchDir
+        .getChildrenNames()
+        .concat(searchDir.getFileNames());
+      this.suggestions = content.filter(
+        (c) => c.substr(0, fragment.length) == fragment
+      );
     },
   },
 };
 </script>
 
 <style>
-#terminal {
+.terminal {
   opacity: 0.95;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

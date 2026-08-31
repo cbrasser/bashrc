@@ -1,14 +1,12 @@
 import Vue from 'vue'
 import App from './App.vue'
-import store from './store';
+import store from './store'
+import './assets/styles.css'
 
-var data = {};
-
+Vue.config.productionTip = false
 
 new Vue({
   el: '#app',
   store,
-  data : data,
   render: h => h(App)
 })
-

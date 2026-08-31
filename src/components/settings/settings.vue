@@ -150,9 +150,19 @@
         </div>
         <div class="settings-section">
           <span>opacity</span>
-          <input type="text" v-model="config.opacity" @input="updateConfig" />
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            v-model.number="config.opacity"
+            @input="updateConfig"
+          />
         </div>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="reset" @click="resetConfig">reset to defaults</div>
     </div>
   </div>
 </template>
@@ -162,27 +172,12 @@ export default {
   name: "settings",
   data: function () {
     return {
-      config: {},
       colorsOpen: false,
       windowsOpen: false,
-      activeTab: "submenu-view",
     };
   },
   props: {
-    activeApps: Array,
-    wmState: String,
     open: Boolean,
-  },
-  created() {
-    this.config = this.$store.state.config;
-  },
-  watch: {
-    wmState: function (newState, oldState) {
-      this.$emit("stateChanged", newState);
-    },
-    city: function (newCity, oldCity) {
-      this.$emit("cityChanged", newCity);
-    },
   },
   methods: {
     toggleBorders() {
@@ -199,32 +194,35 @@ export default {
       this.$store.dispatch("updateConfig", this.config);
     },
     toggleApp(name) {
-      let app = this.config.apps.find((a) => a.name === name);
+      const app = this.config.apps.find((a) => a.name === name);
+      if (!app) return;
       app.visible = !app.visible;
       this.$store.dispatch("updateConfig", this.config);
     },
-    openTab: function (value) {
-      this.activeTab = value;
+    isVisible(name) {
+      // an app can be missing from a config written by an older version
+      const app = this.config.apps.find((a) => a.name === name);
+      return app ? app.visible : false;
     },
-    updateTerminal: function (value) {},
-    updateFm: function (value) {},
+    resetConfig() {
+      this.$store.dispatch("resetConfig");
+    },
   },
   computed: {
+    config() {
+      return this.$store.state.config;
+    },
     terminalActive() {
-      return this.$store.state.config.apps.find((a) => a.name === "terminal")
-        .visible;
+      return this.isVisible("terminal");
     },
     fmActive() {
-      return this.$store.state.config.apps.find((a) => a.name === "filemanager")
-        .visible;
+      return this.isVisible("filemanager");
     },
     weatherActive() {
-      return this.$store.state.config.apps.find((a) => a.name === "weather")
-        .visible;
+      return this.isVisible("weather");
     },
     todoActive() {
-      return this.$store.state.config.apps.find((a) => a.name === "todo")
-        .visible;
+      return this.isVisible("todo");
     },
   },
 };
@@ -335,7 +333,12 @@ export default {
   position: absolute;
   right: 20px;
   top: 20px;
-  transform: translateX(calc(100% + 20px));
+  max-height: calc(100% - 40px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* the panel sits inside the padded screen, so it has to travel a bit
+     further than its own width to be completely off screen */
+  transform: translateX(calc(100% + 4rem));
   transition: 0.3s ease-in-out;
   display: grid;
 }
@@ -357,10 +360,16 @@ export default {
   transform: translateX(0);
 }
 
-input {
+.settings-wrapper input[type="text"] {
   background-color: var(--bg);
   border: none;
   margin-left: 0;
   color: var(--fg);
+  font-family: inherit;
+}
+
+.reset {
+  cursor: pointer;
+  color: var(--accent_2);
 }
 </style>

@@ -9,7 +9,6 @@
       <prompt-input
         v-on:input="onInput"
         v-on:submit="onSubmit"
-        v-model="command"
         v-bind:termSuggestions="suggestions"
       />
     </div>
@@ -20,7 +19,6 @@
 import promptDecoration from "./prompt-decoration.vue";
 import promptInput from "./prompt-input.vue";
 import workingDirectory from "./working-directory.vue";
-import { log } from "../logger";
 
 export default {
   name: "prompt",
@@ -29,14 +27,9 @@ export default {
     workingDirectory,
     promptInput
   },
-  data: function() {
-    return {
-        command: '',
-    }
-  },
   props: {
-      wd: String,
-      suggestions: Array
+    wd: String,
+    suggestions: Array
   },
   watch: {
   },

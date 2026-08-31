@@ -1,6 +1,6 @@
+import Vue from 'vue'
 import Vuex from 'vuex'
-import Vue from 'vue';
-import { FileSystem } from '../util/filesystem/filesystem';
+import { FileSystem } from '../util/filesystem/filesystem'
 
 Vue.use(Vuex);
 
@@ -48,29 +48,61 @@ export const getDefaultConfig = () => {
     };
 }
 
+/* A config stored by an older version can be missing keys that the current
+   version relies on, which used to break the whole page. Fill those in from
+   the defaults instead. */
+const mergeWithDefaults = (stored) => {
+    const defaults = getDefaultConfig();
+    if (!stored || typeof stored !== 'object') {
+        return defaults;
+    }
+    const config = { ...defaults, ...stored };
+    config.colors = { ...defaults.colors, ...(stored.colors || {}) };
+    config.apps = defaults.apps.map((defaultApp) => {
+        const storedApp = (stored.apps || []).find(a => a && a.name === defaultApp.name);
+        if (!storedApp) {
+            return defaultApp;
+        }
+        return {
+            ...defaultApp,
+            ...storedApp,
+            position: { ...defaultApp.position, ...(storedApp.position || {}) },
+            dimensions: { ...defaultApp.dimensions, ...(storedApp.dimensions || {}) },
+        };
+    });
+    return config;
+}
+
+const persist = (key, value) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+        console.error('could not write to local storage', e);
+    }
+}
+
 const store = new Vuex.Store({
     state: {
         fileTree: undefined,
         workingDirectory: undefined,
-        config: getDefaultConfig,
+        config: getDefaultConfig(),
     },
     mutations: {
         CONFIGURATION(state, payload) {
             state.config = payload;
-            localStorage.setItem("config", JSON.stringify(state.config));
+            persist('config', state.config);
         },
         WINDOW_STATE(state, payload) {
             state.config.windowState = payload;
-            localStorage.setItem("config", JSON.stringify(state.config));
-
+            persist('config', state.config);
         },
         CITY(state, payload) {
             state.config.city = payload;
-            localStorage.setItem("config", JSON.stringify(state.config));
+            persist('config', state.config);
         },
         FILE_TREE(state, payload) {
             state.fileTree = payload;
-            localStorage.setItem("root", JSON.stringify(payload.getRoot().toJSON()));
+            persist('root', payload.getRoot().toJSON());
         },
         WORKING_DIRECTORY(state, payload) {
             state.workingDirectory = payload;
@@ -78,26 +110,33 @@ const store = new Vuex.Store({
     },
     actions: {
         loadConfig({ commit }) {
-            console.log('loading config')
-            let config;
+            let stored;
             try {
-                config = JSON.parse(window.localStorage.getItem("config"));
-                console.log('loaded config')
+                stored = JSON.parse(window.localStorage.getItem('config'));
             } catch (e) {
-                console.log('invalid config, loading default');
+                console.warn('invalid config in local storage, loading defaults');
             }
-
-            if (!config) {
-                config = getDefaultConfig();
-            };
-            commit('CONFIGURATION', config);
+            commit('CONFIGURATION', mergeWithDefaults(stored));
         },
         loadFileTree({ commit }) {
-            console.log('loading file system')
-            let json_obj = JSON.parse(window.localStorage.getItem("root"));
-            let tree = new FileSystem(json_obj);
+            let json_obj;
+            try {
+                json_obj = JSON.parse(window.localStorage.getItem('root'));
+            } catch (e) {
+                console.warn('invalid file tree in local storage, starting empty');
+            }
+            let tree;
+            try {
+                tree = new FileSystem(json_obj);
+            } catch (e) {
+                console.error('could not restore the file tree, starting empty', e);
+                tree = new FileSystem();
+            }
             commit('FILE_TREE', tree);
             commit('WORKING_DIRECTORY', tree.getRoot());
+        },
+        resetConfig({ commit }) {
+            commit('CONFIGURATION', getDefaultConfig());
         },
         updateConfig({ commit }, config) {
             commit('CONFIGURATION', config);
