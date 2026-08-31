@@ -1,195 +1,222 @@
 <template>
-  <div class="todo-wrapper" 
-  >
-    <div class='todo-title'>todo</div>
+  <div class="todo-wrapper">
+    <div class="todo-title">todo</div>
     <div class="todo-list">
-    <div class='todo-entry'
-    v-for="(task, index) in todos.active" v-bind:key="index"
-    >
-    <div class='todo-name'>> {{task.name}}</div>
-    <div class='todo-tags'>
-    <span class="tag"
-            v-for="(tag, index) in task.tags"
-            v-bind:key="tag+index"
-            v-bind:style="{'background-color': getTagColor(tag)}"
-            v-on:click='showColorPicker(tag)'>
-            {{tag}}
-            </span>
-    </div>
-    <div class="todo-complete"
-    v-on:click='completeTask(task.name)'
-    ><i class="material-icons">backspace</i></div>
-    <div class='todo-text'>{{task.description}}</div>
-    </div>
-
-    <br>
+      <div
+        class="todo-entry"
+        v-for="(task, index) in todos.active"
+        v-bind:key="task.name + index"
+      >
+        <div class="todo-name">&gt; {{ task.name }}</div>
+        <div class="todo-tags">
+          <span
+            class="tag"
+            v-for="(tag, tagIndex) in task.tags"
+            v-bind:key="tag + tagIndex"
+            v-bind:style="{ 'background-color': getTagColor(tag) }"
+            v-on:click="showColorPicker(tag)"
+          >
+            {{ tag }}
+          </span>
         </div>
+        <div class="todo-complete" v-on:click="completeTask(index)" title="done">
+          <i class="fas fa-check"></i>
+        </div>
+        <div class="todo-text" v-if="task.description">{{ task.description }}</div>
+      </div>
+    </div>
 
-    <form class='todo-prompt'>
-
-        <span class='todo-prompt-label'>{{label}}</span>
-        <input ref="input" v-model="input" 
-                v-on:keydown.13.prevent="addTask" 
-                :placeholder="placeholder" 
-                id="value"/>
+    <form class="todo-prompt" v-on:submit.prevent="addTask">
+      <span class="todo-prompt-label">{{ label }}</span>
+      <input
+        ref="input"
+        v-model="input"
+        v-on:keydown.enter.prevent="addTask"
+        :placeholder="placeholder"
+      />
     </form>
 
-    <div class='color-picker'>
-    <span class='color'
-    v-for='(color, index) in colors'
-    v-bind:key="color+index"
-    v-bind:style="{'background-color': color}"
-    v-on:click='setTagColor(color)'
-    ></span>
+    <div class="color-picker" :class="{ open: colorPickerActive }">
+      <span
+        class="color"
+        v-for="(color, index) in colors"
+        v-bind:key="color + index"
+        v-bind:style="{ 'background-color': color }"
+        v-on:click="setTagColor(color)"
+      ></span>
     </div>
   </div>
 </template>
 
 <script>
-import { log } from "../logger";
-
 export default {
   name: "todo",
-  data: function() {
+  data: function () {
     return {
       todos: {
-          active: [],
-          completed: [],
-          tags: [],
+        active: [],
+        completed: [],
+        tags: [],
       },
-      input: '',
-      inputActive: false,
-      label: 'add',
-      placeholder: 'task [tag, tog]: Do this thing finally',
-      priority: 0,
-      duedate: null,
-      desc: '',
-      showForm: true,
+      input: "",
+      label: "add",
+      placeholder: "task [tag, tog]: Do this thing finally",
+      selectedTag: null,
       colorPickerActive: false,
       colors: [
-        'var(--cyan)',
-        'var(--blue)',
-        'var(--darkblue)',
-        'var(--orange)',
-        'var(--yellow)',
-        'var(--pink)',
-        'var(--green)',
-        'var(--red)',
-        'var(--white)',
-      ]
+        "var(--cyan)",
+        "var(--blue)",
+        "var(--darkblue)",
+        "var(--orange)",
+        "var(--yellow)",
+        "var(--pink)",
+        "var(--green)",
+        "var(--red)",
+        "var(--white)",
+      ],
     };
   },
-  props: {},
-  watch: {
-    colorPickerActive: function(newVal, oldVal) {
-      if (newVal) {
-      $('.color-picker').css('opacity', 1);
-      } else {
-              $('.color-picker').css('opacity', 0);
-
-      }
-    }
-  },
   methods: {
-    loadFromLocalStorage: function() {
-      let json_obj = JSON.parse(window.localStorage.getItem("todo"));
-      if (json_obj) {
-        this.todos = json_obj;
-      } 
+    loadFromLocalStorage: function () {
+      let stored;
+      try {
+        stored = JSON.parse(window.localStorage.getItem("todo"));
+      } catch (e) {
+        console.warn("invalid todo list in local storage, starting empty");
+      }
+      if (stored) {
+        this.todos = {
+          active: stored.active || [],
+          completed: stored.completed || [],
+          tags: stored.tags || [],
+        };
+      }
     },
-    storeToLocalStorage: function() {
-      localStorage.setItem("todo", JSON.stringify(this.todos));
+    storeToLocalStorage: function () {
+      try {
+        localStorage.setItem("todo", JSON.stringify(this.todos));
+      } catch (e) {
+        console.error("could not write the todo list", e);
+      }
     },
-    getTagColor: function(tag) {
-      return this.todos.tags[this.todos.tags.map(t => t.name).indexOf(tag)].color;
+    findTag: function (name) {
+      return this.todos.tags.filter((t) => t.name === name)[0];
     },
-    setTagColor: function(color) {
-      this.todos.tags[this.todos.tags.map(t => t.name).indexOf(this.selectedTag)].color = color;
-      this.storeToLocalStorage()
-          this.colorPickerActive = false;
-
+    getTagColor: function (tag) {
+      // a tag can be missing from the list when the stored data is older
+      const found = this.findTag(tag);
+      return found ? found.color : "var(--white)";
     },
-    showColorPicker: function(tag) {
+    setTagColor: function (color) {
+      const tag = this.findTag(this.selectedTag);
+      if (tag) {
+        tag.color = color;
+        this.storeToLocalStorage();
+      }
+      this.colorPickerActive = false;
+    },
+    showColorPicker: function (tag) {
+      if (this.colorPickerActive && this.selectedTag === tag) {
+        this.colorPickerActive = false;
+        return;
+      }
       this.selectedTag = tag;
       this.colorPickerActive = true;
     },
-    addTask: function() {
-        var input_both = this.input.split(":");
-        var name = input_both[0].split(' ')[0]
-        var task = { name: name, description: input_both[1], tags: []};
+    /* 'name [tag, tag]: description', where tags and description are optional */
+    addTask: function () {
+      const value = this.input.trim();
+      if (value.length == 0) {
+        return;
+      }
+      const separator = value.indexOf(":");
+      const head = separator == -1 ? value : value.substr(0, separator);
+      const description =
+        separator == -1 ? "" : value.substr(separator + 1).trim();
 
-        var tags = input_both[0].split('[')[1];
-        if (tags){
-            tags = tags.substr(0, tags.length-1);
+      const task = {
+        name: head.split("[")[0].trim(),
+        description: description,
+        tags: [],
+      };
+      if (task.name.length == 0) {
+        return;
+      }
 
-            tags = tags.split(/,\s*/);
-            task.tags = tags;
-            this.addTagsIfNew(task.tags)
-        }
+      const tags = head.split("[")[1];
+      if (tags) {
+        task.tags = tags
+          .replace("]", "")
+          .split(/,\s*/)
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0);
+        this.addTagsIfNew(task.tags);
+      }
       this.todos.active.push(task);
-      this.input ='';
+      this.input = "";
       this.storeToLocalStorage();
     },
-    addTagsIfNew: function(tags) {
-        var newTags = tags.filter(t => this.todos.tags.map(g => g.name).indexOf(t) == -1)
-        this.todos.tags = this.todos.tags.concat(newTags.map(t => ({name: t, color: 'white'})))
+    addTagsIfNew: function (tags) {
+      const newTags = tags.filter((t) => !this.findTag(t));
+      this.todos.tags = this.todos.tags.concat(
+        newTags.map((t) => ({ name: t, color: "var(--white)" }))
+      );
     },
-    completeTask: function(name) {
-      var index = this.todos.active.map(t => t.name).indexOf(name);
-      if (index != -1) {
-        var task = this.todos.active.splice(index, 1);
+    completeTask: function (index) {
+      const task = this.todos.active.splice(index, 1)[0];
+      if (task) {
         this.todos.completed.push(task);
       }
-    }
+      // completing a task used to be lost on the next reload
+      this.storeToLocalStorage();
+    },
   },
-  mounted: function() {
+  mounted: function () {
     this.loadFromLocalStorage();
   },
-  computed: {}
 };
 </script>
 
 <style>
-
-tr {
-  border-bottom: 1px solid var(--white);
-}
-
-th {
-  border-bottom:  1px solid var(--white);
-}
-
-.todo-name, .todo-tags, .todo-complete {
+.todo-name,
+.todo-tags,
+.todo-complete {
   display: inline;
 }
 
 .todo-complete {
   float: right;
   cursor: pointer;
-
 }
 
 .todo-wrapper {
   opacity: 0.95;
-
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .todo-list {
-    overflow: auto;
+  flex: 1;
+  overflow-y: auto;
   scrollbar-width: none;
-  max-height:calc(100% - 3rem);
-}                                    
-
-.todo-title {
-  text-transform: uppercase;
-    margin-bottom:1.5rem;
-
+  min-height: 0;
 }
 
-.table-header {
+.todo-entry {
   margin-bottom: 0.5rem;
 }
 
+.todo-title {
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.todo-text {
+  font-size: 0.8rem;
+}
 
 .tag {
   color: var(--dark);
@@ -201,24 +228,38 @@ th {
 }
 
 .todo-prompt {
-    position:absolute;
-    bottom:22px;
-    width: 70%;
-    height: 22px;
-    margin: auto;
-    overflow: hidden;
-    display:flex;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 22px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
 
+.todo-prompt input {
+  flex-grow: 1;
+  background: none;
+  border: none;
+  margin-left: 0.3rem;
+  color: var(--fg);
+  font-family: inherit;
 }
 
 .color-picker {
-  display:flex;
+  display: flex;
   opacity: 0;
+  z-index: 1;
+  pointer-events: none;
   position: absolute;
-  bottom:0;
-  left:0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   transition: opacity 0.6s;
+}
+
+.color-picker.open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .color {
@@ -226,21 +267,13 @@ th {
   width: 40px;
   display: inline-block;
   cursor: pointer;
-  flex-grow:1;
+  flex-grow: 1;
 }
 
 .todo-prompt-label {
-    margin-right: 0.2rem;
-    padding: 0;
-    background-color: var(--green);
-    color: var(--dark);
+  margin-right: 0.2rem;
+  padding: 0 0.2rem;
+  background-color: var(--green);
+  color: var(--dark);
 }
-input {
-    background-color: var(--dark);
-    border: none;
-    margin-left: 0;
-    color: var(--white);
-    flex-grow:1;
-}
-
 </style>

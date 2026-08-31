@@ -1,116 +1,146 @@
 <template>
   <!-- Prompt & user input -->
-  <div>
-    <form>
+  <div class="prompt-input">
+    <form v-on:submit.prevent="submit">
       <input
+        ref="input"
         id="input_field"
         name="cmd"
         v-model="input"
-        v-on:input.prevent="onInput"
-        v-on:keydown.9.prevent=""
-        v-on:keyup.9.prevent="next"
-        v-on:keydown.13.prevent=""
-        v-on:keyup.13.prevent="enter"
+        v-on:input="onInput"
+        v-on:keydown.tab.prevent="next"
+        v-on:keydown.enter.prevent="onEnter"
+        v-on:keydown.esc.prevent="dismiss"
+        v-on:keydown.up.prevent="previousCommand"
+        v-on:keydown.down.prevent="nextCommand"
         type="text"
-        autofocus="autofocus"
         autocomplete="off"
+        spellcheck="false"
       />
     </form>
     <suggestions
       v-bind:suggestions="termSuggestions"
       v-bind:suggestionIndex="index"
-      v-bind:show='showSuggestions'
+      v-bind:show="showSuggestions"
+      v-on:select="accept"
     />
   </div>
 </template>
 
 <script>
-//import { $, jQuery } from "jquery";
 import suggestions from "./suggestions.vue";
-import "expose-loader?$!expose-loader?jQuery!jquery";
-import easyAutocomplete from "easy-autocomplete";
-import { log } from "../logger";
+
+const HISTORY_LIMIT = 50;
 
 export default {
   name: "promptInput",
   data() {
     return {
       input: "",
-      index: 0,
+      index: -1,
       showSuggestions: false,
+      history: [],
+      historyIndex: -1,
     };
   },
   props: {
-    termSuggestions: Array
+    termSuggestions: {
+      type: Array,
+      default: () => [],
+    },
   },
   components: {
-    suggestions
+    suggestions,
+  },
+  mounted() {
+    this.focus();
   },
   methods: {
-    onSubmit(command) {
-      this.$emit("submit", $('input[name="cmd"]').val());
-      $('input[name="cmd"]').val("");
-
-      //this.input = ''
+    focus() {
+      if (this.$refs.input) {
+        this.$refs.input.focus({ preventScroll: true });
+      }
     },
-    onInput(event) {
-      this.$emit("input", $('input[name="cmd"]').val());
+    onInput() {
+      this.$emit("input", this.input);
       this.index = -1;
-      //this.currentSuggestion = this.suggestions[0].slice(this.input.length);
+      this.showSuggestions = false;
+      this.historyIndex = -1;
     },
-    next(event) {
-      if(this.termSuggestions.length == 0) return
-      if(!this.showSuggestions) {
+    submit() {
+      const value = this.input;
+      if (value.trim().length > 0) {
+        this.history.push(value);
+        if (this.history.length > HISTORY_LIMIT) {
+          this.history.shift();
+        }
+      }
+      this.historyIndex = -1;
+      this.index = -1;
+      this.showSuggestions = false;
+      this.input = "";
+      this.$emit("submit", value);
+    },
+    onEnter() {
+      // enter accepts the highlighted suggestion, otherwise it runs the command
+      if (this.showSuggestions && this.index >= 0) {
+        this.accept(this.termSuggestions[this.index]);
+        return;
+      }
+      this.submit();
+    },
+    next() {
+      if (this.termSuggestions.length == 0) return;
+      if (!this.showSuggestions) {
         this.showSuggestions = true;
-        this.index =0;
-      } else {
-        if(this.termSuggestions.length == 1) {
-          this.enter(event);
+        this.index = 0;
+        // a single match needs no cycling, take it right away
+        if (this.termSuggestions.length == 1) {
+          this.accept(this.termSuggestions[0]);
         }
+        return;
+      }
       this.index = (this.index + 1) % this.termSuggestions.length;
-      }
     },
-    enter(event) {
-      if (this.index == -1) {
-        this.$emit("submit", $('input[name="cmd"]').val());
-        $('input[name="cmd"]').val("");
+    accept(suggestion) {
+      if (suggestion === undefined) return;
+      this.input = this.getCompletedInput(this.input).concat(suggestion);
+      this.index = -1;
+      this.showSuggestions = false;
+      this.$emit("input", this.input);
+      this.focus();
+    },
+    dismiss() {
+      this.index = -1;
+      this.showSuggestions = false;
+    },
+    /* Everything up to and including the last space or separator, i.e. the
+       part of the input that autocompletion must not overwrite. */
+    getCompletedInput(input) {
+      const last = Math.max(input.lastIndexOf(" "), input.lastIndexOf("/"));
+      return last == -1 ? "" : input.substring(0, last + 1);
+    },
+    previousCommand() {
+      if (this.history.length == 0) return;
+      this.historyIndex =
+        this.historyIndex == -1
+          ? this.history.length - 1
+          : Math.max(0, this.historyIndex - 1);
+      this.input = this.history[this.historyIndex];
+      this.$emit("input", this.input);
+    },
+    nextCommand() {
+      if (this.historyIndex == -1) return;
+      if (this.historyIndex >= this.history.length - 1) {
+        this.historyIndex = -1;
+        this.input = "";
       } else {
-        var completed_input = this.getCompletedInput(this.input);
-        this.input = completed_input.concat(this.termSuggestions[this.index]);
-        if(completed_input.length > 0) {
-          this.input = this.input.concat("/");
-        } else {
-          this.input = this.input.concat(" ");
-        }
-        this.$emit("input", this.input);
-
-        this.index = -1;
-        this.showSuggestions = false;
+        this.historyIndex += 1;
+        this.input = this.history[this.historyIndex];
       }
-      },
-      getCompletedInput(input) {
-        var space_ind = input.lastIndexOf(" ");
-        var sep_ind = input.lastIndexOf("/");
-        var last = space_ind > sep_ind ? space_ind : sep_ind;
-        if(last == -1) {
-          return ""
-        } else {
-          return input.substring(0, last+1);
-        }
-      }
-
+      this.$emit("input", this.input);
+    },
   },
-  mounted: function() {},
-  computed: {
-    input_value: function() {
-      return $('input[name="cmd"]').val();
-    }
-  },
-  watch: {
-    termSuggestions: function() {
-      //this.sugg_obj.suggestions = this.suggestions;
-    }
-  }
 };
 </script>
 
@@ -125,7 +155,8 @@ export default {
   outline: none !important;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--fg);
+  font-family: inherit;
   font-size: 1em;
 }
 
