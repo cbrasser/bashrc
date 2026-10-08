@@ -50,7 +50,7 @@ export default {
 .label {
   padding: 0 0.3rem;
   background-color: var(--green);
-  color: var(--dark);
+  color: var(--bg);
 }
 
 .fm-prompt input {

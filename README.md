@@ -1,7 +1,7 @@
 
 # BASHRC
 
-![demo](https://github.com/cbrasser/bashrc/blob/master/demo_screen_newer.png)
+![demo](demo.jpg)
 
 ## Running it
 
@@ -34,10 +34,6 @@ There is no backend and no environment variable to set: bookmarks, todos and
 settings all live in the browser's local storage, and the weather applet talks
 to open-meteo directly.
 
-## Open issues
- - shortcuts for 'quitting' and opening applications
-
-
 ## Functionality
 
 The basic principle of this startpage is to act as a bookmark repository.
@@ -47,20 +43,60 @@ This is a start page heavily inspired by my linux desktop setup, where I mainly 
 
 Directories in the file system resemble bookmark categories and Files are named links to your webpages.
 
-The Idea is to act like an os with a desktop environment, a file manager and open programs that are then arranged on the page trough a Window Manager (currently tiling or floating).
+The idea is to act like an os with a desktop environment, a file manager and
+open programs that are arranged on the page by a window manager.
 
-### Tiled
+## Window manager
 
-windows are arranged automatically to fill all available space (with sexy gaps, ofc)
+The layout is a tiling one, modelled after hyprland's default **dwindle**
+layout: the workspace is a binary tree, and a new window splits the focused
+window's space along its longer side. No window ever overlaps another one and
+no space is wasted. Drag the gap between two windows to move their split, or
+resize with the keyboard.
 
-### Floating
+Every window can be popped out of the tiling with `mod + v`, after which it
+floats above the tiles and can be dragged by its title bar and resized from its
+bottom right corner. `mod + f` makes the focused window fill the screen.
 
-In the floating layout, you can arrange the windows by dragging and resizing them on their side borders.
+### Workspaces
 
- window locations and dimensions are stored in the config and should be persistent upon refreshing the page. This way you can arrange your windows in a way that you like.
- 
-Note: The window locations are absolute. Meaning that if you place a window on, e.g., the bottom-right corner on a big screen and then resize your screen the window might be out of the visible area. There are some checks to bring them back upon refreshing the page, but i did not test this too much :)
+There are nine workspaces, switched with `mod + 1 … 9`. A window moves to
+another workspace with `mod + shift + 1 … 9`. The bar at the top shows which
+workspaces hold windows; the current one is highlighted.
 
+### Keybindings
+
+`mod` is **alt** by default, and that is on purpose: a web page cannot prevent
+the browser from acting on `super + 1` or most `ctrl + letter` combinations,
+while `alt` always reaches the page. It can be changed to ctrl or super in the
+settings. Press `mod + /` for the full list at any time.
+
+| keys | action |
+| --- | --- |
+| `mod + return` | new terminal |
+| `mod + e` / `w` / `t` | new file manager / weather / todo list |
+| `mod + q` | close the focused window |
+| `mod + f` | toggle fullscreen |
+| `mod + v` | toggle floating |
+| `mod + tab` | cycle focus |
+| `mod + h j k l` | focus left / down / up / right (arrow keys work too) |
+| `mod + shift + h j k l` | swap the focused window with its neighbour |
+| `mod + ctrl + h j k l` | resize the focused window |
+| `mod + 1 … 9` | switch workspace |
+| `mod + shift + 1 … 9` | send the focused window to a workspace |
+| `mod + s` | settings |
+| `mod + /` | keybindings |
+
+Window positions, sizes, workspaces and the layout tree are stored in local
+storage, so a reload brings the session back as it was.
+
+### Themes
+
+Six presets ship with the page: catppuccin mocha (the default), tokyo night,
+nord, gruvbox dark, rosé pine and everforest. Gaps, corner rounding, border
+width, background blur, window opacity, animations and the status bar can all
+be adjusted in the settings panel, as can the wallpaper, which takes any image
+url.
 
 ## Available programs
 
@@ -123,24 +159,27 @@ university, some project, whatever). You can color-code the tags by clicking on 
 
 ### Settings
 
-The wheel on the bottom right of the page opens the settings. you can select which applications you would like to have open upon startup as well as your preferred state of the window manager. You can also set your city for the weather applet and configure the colors, wallpaper, and window decorations to your likings!
+The cog in the bar opens the settings, as does `mod + s`. Applications are
+launched from there, and it is where the theme, the window decorations, the
+modifier key, your city and the wallpaper live.
 
-The background image option needs to be a valid url of an image in oder to work. 
-The colors currently only support hex values
-The opacity needs to be a value from 0 to 1. 
+The wallpaper option needs to be a valid url of an image; leaving it empty
+falls back to the gradient that belongs to the current theme.
 
 The terminal and the file manager share their working directory, so navigating
 in one of them moves the other one as well.
 
-### Settings: reset
+### Resetting
 
-If a stored configuration ever ends up in a broken state, 'reset to defaults' at
-the bottom of the settings panel puts everything back. Bookmarks are not
-touched by this, they are stored separately.
+The bottom of the settings panel has two buttons: 'reset layout' puts the
+windows back to a terminal and a file manager on workspace one, 'reset
+settings' restores the default theme and decorations. Neither of them touches
+your bookmarks or todos, those are stored separately.
 
 ### Active TODO list
 
-- implement filetree widget
+- a second layout, master/stack
+- special workspace (hyprland's scratchpad)
 
 ### General remarks
 
@@ -149,4 +188,8 @@ Links and dirs are clickable in all programs as well, but thats not the point of
 All bookmarks are currently stored in local storage, so you might now want to clear your cache if you stored a lot of bookmarks on the page. I am planning on porting the page into a chrome extension to get better storage options.
 
 It should work with all modern browsers, however I'm mainly using firefox and can't guarantee that everything looks nicely on other browsers.
+
+The window blur uses `backdrop-filter`. If a browser does not support it the
+windows simply stay translucent without the blur, and it can be switched off in
+the settings anyway.
 

@@ -1,33 +1,83 @@
-/* Global base styles and the fallback palette.
-   The user configurable colors (--fg, --bg, --accent_*) are set as inline
-   custom properties on #app by App.vue. */
+/*
+ * Global base. Everything that can be themed is a custom property set on #app
+ * by the window manager; the values here are only the fallbacks that apply
+ * before the configuration is read.
+ */
 :root {
-  --cyan: #8fbcbb;
-  --dark: #1a1e21;
-  --blue: #81a1c1;
-  --darkblue: #5e81ac;
-  --orange: #d08770;
-  --yellow: #ebcb8b;
-  --green: #a3be8c;
-  --pink: #b48ead;
-  --red: #bf616a;
-  --white: #d8dee9;
+  --fg: #cdd6f4;
+  --bg: #1e1e2e;
+  --muted: #7f849c;
+  --accent_1: #89b4fa;
+  --accent_2: #f38ba8;
+  --accent_3: #f9e2af;
+  --green: #a6e3a1;
+  --cyan: #94e2d5;
+  --orange: #fab387;
+  --pink: #cba6f7;
+  --red: #f38ba8;
+  --yellow: #f9e2af;
+  --blue: #89b4fa;
+  --surface: rgba(205, 214, 244, 0.08);
+  --line: rgba(205, 214, 244, 0.12);
+  --rounding: 14px;
+  --gap-outer: 14px;
+  --border-width: 2px;
 }
 
-html {
-  overflow: hidden;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html,
+body {
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 body {
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-  margin: 0;
-  font-size: 20px;
-  font-family: 'JetBrains Mono', 'Fantasque Sans Mono', 'Fira Code', monospace;
-  font-weight: normal;
-  font-style: normal;
-  background: linear-gradient(120deg, #a6c0fe 0%, #f68084 100%);
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", "Fira Code", monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: #1e1e2e;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+*:focus {
+  outline: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

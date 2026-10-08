@@ -19,7 +19,8 @@
             file: node.type == 'file',
           }"
         >
-          {{ node.name }}
+          <wm-icon :name="node.type === 'directory' ? 'folder' : 'file'" :size="13" />
+          <span class="entry-name">{{ node.name }}</span>
         </li>
       </ul>
       <div class="fm-prompt-wrapper" v-if="promptActive">
@@ -44,6 +45,7 @@
 
 <script>
 import prompt from "./prompt";
+import wmIcon from "../wm/icon";
 
 export default {
   name: "filemanager",
@@ -65,6 +67,7 @@ export default {
   },
   components: {
     prompt,
+    wmIcon,
   },
   mounted: function () {
     this.focus();
@@ -270,84 +273,118 @@ export default {
 
 <style>
 #filemanager {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   outline: none;
+  font-size: 0.88rem;
 }
 
-.wrapper {
+#filemanager .wrapper {
   position: relative;
-  width: 100%;
-  height: 100%;
   display: flex;
-  overflow: hidden;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 #filemanager ul {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   padding: 0;
   margin: 0;
-  width: 100%;
   overflow-y: auto;
-  scrollbar-width: none;
-  max-height: calc(100% - 22px);
 }
 
-.directory {
+#filemanager li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 2px 7px;
+  border-radius: 6px;
   cursor: pointer;
-  color: var(--cyan);
-}
-.file {
-  cursor: pointer;
-  color: var(--yellow);
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.directory.selected {
-  background-color: var(--cyan);
-  color: var(--dark);
-}
-.file.selected {
-  background-color: var(--yellow);
-  color: var(--dark);
-}
-
-.status-bar {
-  position: absolute;
-  bottom: 0;
-  height: 22px;
-  width: 100%;
-  font-size: 0.8rem;
-  line-height: 22px;
-  color: var(--dark);
-  background-color: var(--red);
+.entry-name {
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.filter {
-  float: right;
+#filemanager .directory {
+  color: var(--accent_1);
 }
 
-.fm-error {
-  margin-left: 1rem;
+#filemanager .file {
+  color: var(--yellow);
+}
+
+#filemanager li:hover {
+  background: var(--surface);
+}
+
+#filemanager .directory.selected {
+  background: var(--accent_1);
+  color: var(--bg);
+}
+
+#filemanager .file.selected {
+  background: var(--yellow);
+  color: var(--bg);
 }
 
 /* has to beat .directory.selected / .file.selected, an entry can be both */
-.directory.marked,
-.file.marked,
-.directory.selected.marked,
-.file.selected.marked {
-  background-color: var(--red);
-  color: var(--dark);
+#filemanager .directory.marked,
+#filemanager .file.marked,
+#filemanager .directory.selected.marked,
+#filemanager .file.selected.marked {
+  background: var(--red);
+  color: var(--bg);
 }
-.wd {
-  margin-left: 1rem;
-}
-.fm-prompt-wrapper {
-  position: absolute;
-  bottom: 22px;
-  width: 100%;
-  height: 22px;
-  margin: auto;
+
+.status-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
   overflow: hidden;
+}
+
+.status-bar .position {
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar .wd {
+  color: var(--accent_1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar .fm-error {
+  color: var(--red);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar .filter {
+  margin-left: auto;
+  color: var(--accent_3);
+}
+
+.fm-prompt-wrapper {
+  flex: none;
+  margin-top: 0.4rem;
 }
 </style>

@@ -83,7 +83,7 @@ export default {
           res.messages.push({
             type: "value",
             value: "DE > " + get_browser_info().name,
-            css: { color: "var(--darkblue)" },
+            css: { color: "var(--blue)" },
           });
           return res;
         },
@@ -228,10 +228,10 @@ export default {
 
 <style>
 .terminal {
-  opacity: 0.95;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-size: 0.9rem;
 }
 </style>

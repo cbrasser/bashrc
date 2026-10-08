@@ -1,55 +1,45 @@
 <template>
-  <!-- Prompt & user input -->
   <div class="prompt-line">
-    <div class="prompt-wrapper">
-      <prompt-decoration/>
-      <working-directory v-bind:wd="wd" />
-    </div>
-    <div class="form-wrapper">
-      <prompt-input
-        v-on:input="onInput"
-        v-on:submit="onSubmit"
-        v-bind:termSuggestions="suggestions"
-      />
-    </div>
+    <span class="prompt-path">{{ wd }}</span>
+    <span class="prompt-caret">❯</span>
+    <prompt-input
+      ref="input"
+      v-on:input="$emit('input', $event)"
+      v-on:submit="$emit('submit', $event)"
+      v-bind:termSuggestions="suggestions"
+    />
   </div>
 </template>
 
 <script>
-import promptDecoration from "./prompt-decoration.vue";
 import promptInput from "./prompt-input.vue";
-import workingDirectory from "./working-directory.vue";
 
 export default {
   name: "prompt",
-  components: {
-    promptDecoration,
-    workingDirectory,
-    promptInput
-  },
+  components: { promptInput },
   props: {
     wd: String,
-    suggestions: Array
-  },
-  watch: {
-  },
-  methods: {
-    onInput: function(value) {
-      this.$emit("input", value);
-    },
-    onSubmit: function(value) {
-      this.$emit("submit", value);
-    },
+    suggestions: Array,
   },
 };
 </script>
 
 <style>
 .prompt-line {
-  margin-bottom: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  flex: none;
 }
-.prompt-wrapper {
-  float: left;
-  margin-right: 1rem;
+
+.prompt-path {
+  flex: none;
+  color: var(--accent_1);
+  font-weight: 500;
+}
+
+.prompt-caret {
+  flex: none;
+  color: var(--green);
 }
 </style>

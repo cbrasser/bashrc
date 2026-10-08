@@ -1,257 +1,590 @@
 <template>
-  <div id="app" :style="userStyle">
-    <div id="screen" :class="config.windowState">
-      <vue-resizable
-        :dragSelector="'.drag-bar'"
-        :width="app.dimensions.width"
-        :height="app.dimensions.height"
-        :left="app.position.left"
-        :top="app.position.top"
-        v-for="app in visibleApps"
-        :key="app.name"
-        :active="['r', 'rb', 'b', 'lb', 'l', 'lt', 't', 'rt']"
-        :class="{ focused: focusedApp === app.name }"
-        @resize:end="handleDragEnd(app.name, $event)"
-        @drag:end="handleDragEnd(app.name, $event)"
-        @mousedown.native="focusedApp = app.name"
-      >
-        <Window
-          :id="app.name"
-          :ref="app.name"
-          :position="app.position"
-          :dimensions="app.dimensions"
-          :applicationName="app.name"
-          :draggable="config.windowState === 'floating'"
-          :name="app.name"
-          :class="{ border: config.windowBorders }"
-        >
-          <div slot="application" class="application-wrapper">
-            <filemanager
-              class="application"
-              v-if="app.name === 'filemanager'"
-            ></filemanager>
-            <terminal
-              class="application"
-              v-if="app.name === 'terminal'"
-            ></terminal>
-            <weather
-              :city="config.city"
-              class="application"
-              v-if="app.name === 'weather'"
-            />
-            <todo class="application" v-if="app.name === 'todo'"> </todo>
-          </div>
-        </Window>
-      </vue-resizable>
+  <div id="app" :style="rootStyle">
+    <wm-bar
+      v-if="config.showBar"
+      :workspaceCount="workspaceCount"
+      :activeWorkspace="wm.activeWorkspace"
+      :occupied="occupiedWorkspaces"
+      :focusedApp="focusedWindow ? focusedWindow.app : ''"
+      :floating="!!(focusedWindow && focusedWindow.floating)"
+      :fullscreen="!!wm.fullscreen"
+      :settingsOpen="settingsOpen"
+      v-on:workspace="setWorkspace"
+      v-on:settings="settingsOpen = !settingsOpen"
+      v-on:cheatsheet="cheatsheetOpen = true"
+    />
 
-      <settingsIcon
-        v-on:click="settingsOpen = !settingsOpen"
-        :open="settingsOpen"
-      ></settingsIcon>
-      <settings :open="settingsOpen"> </settings>
-    </div>
+    <main id="screen" ref="screen">
+      <div class="empty-hint" v-if="activeWindows.length === 0">
+        <wm-icon name="layers" :size="26" />
+        <p>workspace {{ wm.activeWorkspace }} is empty</p>
+        <p class="empty-keys">
+          <kbd>{{ modifierLabel }}</kbd> + <kbd>return</kbd> terminal ·
+          <kbd>{{ modifierLabel }}</kbd> + <kbd>e</kbd> files ·
+          <kbd>{{ modifierLabel }}</kbd> + <kbd>/</kbd> all keys
+        </p>
+      </div>
+
+      <div
+        v-for="gutter in gutters"
+        :key="'gutter-' + gutter.path.join('')"
+        class="gutter"
+        :class="gutter.dir"
+        :style="{
+          left: gutter.left + 'px',
+          top: gutter.top + 'px',
+          width: gutter.width + 'px',
+          height: gutter.height + 'px',
+        }"
+        v-on:mousedown.prevent="startGutterDrag(gutter, $event)"
+      ></div>
+
+      <window-frame
+        v-for="item in placedWindows"
+        :key="item.window.id"
+        :window="item.window"
+        :rect="item.rect"
+        :focused="item.window.id === wm.focused"
+        :animated="config.animations && !dragging"
+        :data-window-id="item.window.id"
+        v-on:focus="focusWindow(item.window.id)"
+        v-on:close="closeWindow(item.window.id)"
+        v-on:float="toggleFloating(item.window.id)"
+        v-on:fullscreen="toggleFullscreen(item.window.id)"
+        v-on:drag-start="startWindowDrag(item, $event)"
+        v-on:resize-start="startWindowResize(item, $event)"
+      >
+        <terminal v-if="item.window.app === 'terminal'" />
+        <filemanager v-else-if="item.window.app === 'filemanager'" />
+        <weather v-else-if="item.window.app === 'weather'" :city="config.city" />
+        <todo v-else-if="item.window.app === 'todo'" />
+      </window-frame>
+    </main>
+
+    <settings
+      :open="settingsOpen"
+      v-on:close="settingsOpen = false"
+      v-on:spawn="spawn"
+      v-on:cheatsheet="cheatsheetOpen = true"
+    />
+
+    <cheatsheet
+      :open="cheatsheetOpen"
+      :modifier="config.modifier"
+      v-on:close="cheatsheetOpen = false"
+    />
   </div>
 </template>
 
 <script>
-import VueResizable from "vue-resizable";
+import * as dwindle from "./util/wm/dwindle";
+import { resolve, MODIFIERS } from "./util/wm/keymap";
+import { WORKSPACES } from "./store";
 
 import terminal from "./components/terminal/terminal";
 import filemanager from "./components/filemanager/filemanager";
 import weather from "./components/widgets/weather";
 import todo from "./components/widgets/todo";
-import Window from "./components/widgets/window";
 import settings from "./components/settings/settings";
-import settingsIcon from "./components/settings/settingsIcon";
+import wmBar from "./components/wm/bar";
+import windowFrame from "./components/wm/window-frame";
+import cheatsheet from "./components/wm/cheatsheet";
+import wmIcon from "./components/wm/icon";
 
-const MIN_SIZE = { width: 200, height: 120 };
+const MIN_FLOATING = { width: 260, height: 160 };
 
 export default {
   name: "app",
+  components: {
+    terminal,
+    filemanager,
+    weather,
+    todo,
+    settings,
+    wmBar,
+    windowFrame,
+    cheatsheet,
+    wmIcon,
+  },
   data() {
     return {
       settingsOpen: false,
-      focusedApp: null,
+      cheatsheetOpen: false,
+      screen: { width: 0, height: 0 },
+      dragging: null,
+      observer: null,
     };
   },
-  components: {
-    VueResizable,
-    terminal,
-    filemanager,
-    settings,
-    settingsIcon,
-    weather,
-    todo,
-    Window,
-  },
+
   created: async function () {
     await this.$store.dispatch("loadConfig");
-    this.clampWindows();
     await this.$store.dispatch("loadFileTree");
   },
-  mounted: function () {
-    window.addEventListener("resize", this.onWindowResize);
+
+  mounted() {
+    this.measure();
+    if (window.ResizeObserver) {
+      this.observer = new ResizeObserver(this.measure);
+      this.observer.observe(this.$refs.screen);
+    }
+    window.addEventListener("resize", this.measure);
+    window.addEventListener("keydown", this.onKey, true);
+    // a tab that starts in the background reports no size at all
+    document.addEventListener("visibilitychange", this.measure);
+    this.$nextTick(this.focusActiveWindow);
   },
-  beforeDestroy: function () {
-    window.removeEventListener("resize", this.onWindowResize);
-    clearTimeout(this.resizeTimer);
+
+  beforeDestroy() {
+    if (this.observer) this.observer.disconnect();
+    window.removeEventListener("resize", this.measure);
+    window.removeEventListener("keydown", this.onKey, true);
+    document.removeEventListener("visibilitychange", this.measure);
+    this.endDrag();
   },
+
   computed: {
     config() {
       return this.$store.state.config;
     },
-    visibleApps() {
-      return this.config.apps.filter((a) => a.visible);
+    wm() {
+      return this.$store.state.wm;
     },
-    userStyle() {
+    workspaceCount() {
+      return WORKSPACES;
+    },
+    activeWindows() {
+      return this.$store.getters.activeWindows;
+    },
+    occupiedWorkspaces() {
+      return this.$store.getters.occupiedWorkspaces;
+    },
+    focusedWindow() {
+      return this.$store.getters.focusedWindow;
+    },
+    modifierLabel() {
+      return (MODIFIERS[this.config.modifier] || MODIFIERS.alt).label;
+    },
+
+    /* The dwindle tiles for the active workspace. */
+    tiling() {
+      const tree = this.$store.getters.tiledTree;
+      if (!tree || !this.screen.width) return { tiles: [], gutters: [] };
+      const gap = this.config.gapInner;
+      return dwindle.layout(
+        tree,
+        { left: 0, top: 0, width: this.screen.width, height: this.screen.height },
+        gap
+      );
+    },
+    tileRects() {
+      const rects = {};
+      this.tiling.tiles.forEach((tile) => {
+        rects[tile.id] = tile;
+      });
+      return rects;
+    },
+    gutters() {
+      if (this.wm.fullscreen) return [];
+      return this.tiling.gutters;
+    },
+
+    /* Every window on this workspace together with the rectangle it occupies. */
+    placedWindows() {
+      const fullscreen = this.wm.fullscreen;
+      return this.activeWindows
+        .map((window) => {
+          if (fullscreen === window.id) {
+            return {
+              window,
+              rect: {
+                left: 0,
+                top: 0,
+                width: this.screen.width,
+                height: this.screen.height,
+                zIndex: 40,
+              },
+            };
+          }
+          if (window.floating) {
+            return {
+              window,
+              rect: {
+                ...window.position,
+                ...window.dimensions,
+                zIndex: window.id === this.wm.focused ? 30 : 20,
+              },
+            };
+          }
+          const tile = this.tileRects[window.id];
+          if (!tile) return null;
+          return {
+            window,
+            rect: { ...tile, zIndex: window.id === this.wm.focused ? 11 : 10 },
+          };
+        })
+        .filter((item) => item && (!fullscreen || item.window.id === fullscreen));
+    },
+
+    rootStyle() {
+      const colors = this.$store.getters.colors;
       const style = {
-        "--fg": this.config.colors.fg,
-        "--bg": this.config.colors.bg,
-        "--accent_1": this.config.colors.accent_1,
-        "--accent_2": this.config.colors.accent_2,
-        "--accent_3": this.config.colors.accent_3,
-        "--bg-opaque": this.buildRGBA(this.config.colors.bg, this.config.opacity),
+        "--fg": colors.fg,
+        "--bg": colors.bg,
+        "--muted": colors.muted,
+        "--accent_1": colors.accent_1,
+        "--accent_2": colors.accent_2,
+        "--accent_3": colors.accent_3,
+        "--green": colors.green,
+        "--cyan": colors.cyan,
+        "--orange": colors.orange,
+        "--pink": colors.pink,
+        "--red": colors.red,
+        "--yellow": colors.yellow,
+        "--blue": colors.blue,
+        "--bg-solid": colors.bg,
+        "--bg-translucent": this.rgba(colors.bg, this.config.opacity),
+        "--surface": this.rgba(colors.fg, 0.08),
+        "--line": this.rgba(colors.fg, 0.12),
+        "--border-idle": this.rgba(colors.fg, 0.14),
+        "--glow": this.rgba(colors.accent_1, 0.55),
+        "--rounding": `${this.config.rounding}px`,
+        "--border-width": `${this.config.borderWidth}px`,
+        "--gap-outer": `${this.config.gapOuter}px`,
+        "--window-blur": this.config.blur ? "blur(18px) saturate(140%)" : "none",
+        "background-image": this.$store.getters.wallpaper,
       };
-      if (this.config.backgroundImage) {
-        style["background-image"] = `url(${this.config.backgroundImage})`;
-      }
       return style;
     },
   },
+
+  watch: {
+    "wm.focused": function () {
+      this.$nextTick(this.focusActiveWindow);
+    },
+    "wm.activeWorkspace": function () {
+      this.$nextTick(this.focusActiveWindow);
+    },
+  },
+
   methods: {
-    hexToRgb(hex) {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result
-        ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16),
+    rgba(hex, alpha) {
+      const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+      if (!match) return hex;
+      const [r, g, b] = match.slice(1).map((part) => parseInt(part, 16));
+      const value = isNaN(parseFloat(alpha)) ? 1 : parseFloat(alpha);
+      return `rgba(${r}, ${g}, ${b}, ${value})`;
+    },
+
+    measure() {
+      const element = this.$refs.screen;
+      if (!element) return;
+      // a hidden tab reports nothing, keeping the old size avoids a collapse
+      if (!element.clientWidth || !element.clientHeight) return;
+      this.screen = { width: element.clientWidth, height: element.clientHeight };
+      this.clampFloating();
+    },
+
+    clampFloating() {
+      this.wm.windows
+        .filter((w) => w.floating)
+        .forEach((w) => {
+          const width = Math.min(w.dimensions.width, this.screen.width);
+          const height = Math.min(w.dimensions.height, this.screen.height);
+          const left = Math.min(Math.max(0, w.position.left), this.screen.width - width);
+          const top = Math.min(Math.max(0, w.position.top), this.screen.height - height);
+          if (
+            width !== w.dimensions.width ||
+            height !== w.dimensions.height ||
+            left !== w.position.left ||
+            top !== w.position.top
+          ) {
+            this.$store.dispatch("moveFloating", {
+              id: w.id,
+              position: { left, top },
+              dimensions: { width, height },
+            });
           }
-        : null;
+        });
     },
-    buildRGBA(hex, opacity) {
-      const rgb = this.hexToRgb(hex);
-      if (!rgb) {
-        // an incomplete color from the settings field must not break the page
-        return hex;
-      }
-      const alpha = isNaN(parseFloat(opacity)) ? 1 : parseFloat(opacity);
-      return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+
+    // ------------------------------- actions --------------------------------
+
+    spawn(app) {
+      this.$store.dispatch("spawn", { app, rects: this.tileRects });
     },
-    /* Window positions are absolute, so bring windows that ended up outside
-       the viewport (smaller screen, rotated device, ...) back into view. */
-    clampWindows() {
-      const viewport = { width: window.innerWidth, height: window.innerHeight };
-      // a hidden or not yet laid out tab reports a zero sized viewport, and
-      // clamping against that would collapse every window to nothing
-      if (!viewport.width || !viewport.height) {
+    closeWindow(id) {
+      this.$store.dispatch("close", id || this.wm.focused);
+    },
+    focusWindow(id) {
+      this.$store.dispatch("focus", id);
+    },
+    toggleFloating(id) {
+      this.$store.dispatch("toggleFloating", id || this.wm.focused);
+    },
+    toggleFullscreen(id) {
+      this.$store.dispatch("toggleFullscreen", id || this.wm.focused);
+    },
+    setWorkspace(workspace) {
+      this.$store.dispatch("setWorkspace", workspace);
+    },
+
+    focusDirection(direction) {
+      const focused = this.focusedWindow;
+      if (!focused) return;
+      if (focused.floating) {
+        this.cycleFocus();
         return;
       }
-      const config = this.config;
-      config.apps.forEach((app) => {
-        app.dimensions.width = Math.max(
-          MIN_SIZE.width,
-          Math.min(app.dimensions.width, viewport.width)
-        );
-        app.dimensions.height = Math.max(
-          MIN_SIZE.height,
-          Math.min(app.dimensions.height, viewport.height)
-        );
-        app.position.left = Math.min(
-          Math.max(0, app.position.left),
-          Math.max(0, viewport.width - app.dimensions.width)
-        );
-        app.position.top = Math.min(
-          Math.max(0, app.position.top),
-          Math.max(0, viewport.height - app.dimensions.height)
-        );
+      const next = dwindle.neighbour(this.tiling.tiles, focused.id, direction);
+      if (next) this.focusWindow(next);
+    },
+
+    moveDirection(direction) {
+      const focused = this.focusedWindow;
+      if (!focused || focused.floating) return;
+      const next = dwindle.neighbour(this.tiling.tiles, focused.id, direction);
+      if (next) this.$store.dispatch("swapWindows", { from: focused.id, to: next });
+    },
+
+    cycleFocus() {
+      const windows = this.activeWindows;
+      if (windows.length < 2) return;
+      const index = windows.findIndex((w) => w.id === this.wm.focused);
+      this.focusWindow(windows[(index + 1) % windows.length].id);
+    },
+
+    /* Move keyboard focus into the application inside the focused window. */
+    focusActiveWindow() {
+      if (!this.wm.focused) return;
+      const frame = this.$el.querySelector(
+        `[data-window-id="${this.wm.focused}"]`
+      );
+      if (!frame) return;
+      const target = frame.querySelector("input, [tabindex]");
+      if (target) target.focus({ preventScroll: true });
+    },
+
+    onKey(event) {
+      if (event.key === "Escape") {
+        if (this.cheatsheetOpen) {
+          this.cheatsheetOpen = false;
+          event.preventDefault();
+        } else if (this.settingsOpen) {
+          this.settingsOpen = false;
+          event.preventDefault();
+        }
+        return;
+      }
+
+      const action = resolve(event, this.config.modifier);
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const [name, argument] = action.split(":");
+      switch (name) {
+        case "spawn":
+          this.spawn(argument);
+          break;
+        case "close":
+          this.closeWindow();
+          break;
+        case "fullscreen":
+          this.toggleFullscreen();
+          break;
+        case "float":
+          this.toggleFloating();
+          break;
+        case "cycle":
+          this.cycleFocus();
+          break;
+        case "focus":
+          this.focusDirection(argument);
+          break;
+        case "move":
+          this.moveDirection(argument);
+          break;
+        case "resize":
+          this.$store.dispatch("resizeWindow", {
+            id: this.wm.focused,
+            direction: argument,
+            amount: 0.03,
+          });
+          break;
+        case "workspace":
+          this.setWorkspace(argument);
+          break;
+        case "send":
+          this.$store.dispatch("sendToWorkspace", {
+            id: this.wm.focused,
+            workspace: argument,
+          });
+          break;
+        case "settings":
+          this.settingsOpen = !this.settingsOpen;
+          break;
+        case "cheatsheet":
+          this.cheatsheetOpen = !this.cheatsheetOpen;
+          break;
+      }
+    },
+
+    // -------------------------------- dragging -------------------------------
+
+    /* Dragging a gutter sets the ratio of the split it belongs to directly
+       from the pointer position inside that split's own area. */
+    startGutterDrag(gutter, event) {
+      const horizontal = gutter.dir === dwindle.ROW;
+      const screenRect = this.$refs.screen.getBoundingClientRect();
+      this.beginDrag({
+        kind: "gutter",
+        path: gutter.path,
+        horizontal,
+        origin: horizontal
+          ? screenRect.left + gutter.area.left
+          : screenRect.top + gutter.area.top,
+        usable: Math.max(1, gutter.usable),
       });
-      this.$store.dispatch("updateConfig", config);
     },
-    onWindowResize() {
-      clearTimeout(this.resizeTimer);
-      this.resizeTimer = setTimeout(this.clampWindows, 250);
+
+    startWindowDrag(item, event) {
+      this.beginDrag({
+        kind: "move",
+        id: item.window.id,
+        startX: event.clientX,
+        startY: event.clientY,
+        origin: { ...item.window.position },
+      });
     },
-    handleDragEnd(appName, event) {
-      // in the tiled layout the positions are managed by the grid
-      if (this.config.windowState !== "floating") {
+
+    startWindowResize(item, event) {
+      this.beginDrag({
+        kind: "resize",
+        id: item.window.id,
+        startX: event.clientX,
+        startY: event.clientY,
+        origin: { ...item.window.dimensions },
+      });
+    },
+
+    beginDrag(drag) {
+      this.dragging = drag;
+      document.addEventListener("mousemove", this.onDragMove);
+      document.addEventListener("mouseup", this.endDrag);
+      document.body.classList.add("dragging");
+    },
+
+    onDragMove(event) {
+      const drag = this.dragging;
+      if (!drag) return;
+
+      if (drag.kind === "gutter") {
+        const pointer = drag.horizontal ? event.clientX : event.clientY;
+        const ratio = (pointer - drag.origin) / drag.usable;
+        this.$store.dispatch("setRatio", { path: drag.path, ratio });
         return;
       }
-      if (!event || !event.width || !event.height) {
-        return;
+
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+
+      if (drag.kind === "move") {
+        this.$store.dispatch("moveFloating", {
+          id: drag.id,
+          position: {
+            left: Math.round(drag.origin.left + dx),
+            top: Math.round(drag.origin.top + dy),
+          },
+        });
+      } else {
+        this.$store.dispatch("moveFloating", {
+          id: drag.id,
+          dimensions: {
+            width: Math.max(MIN_FLOATING.width, Math.round(drag.origin.width + dx)),
+            height: Math.max(MIN_FLOATING.height, Math.round(drag.origin.height + dy)),
+          },
+        });
       }
-      const config = this.config;
-      const app = config.apps.find((app) => app.name === appName);
-      if (!app) {
-        return;
-      }
-      app.position = { top: event.top, left: event.left };
-      app.dimensions = { height: event.height, width: event.width };
-      this.$store.dispatch("updateConfig", config);
+    },
+
+    endDrag() {
+      if (!this.dragging) return;
+      this.dragging = null;
+      document.removeEventListener("mousemove", this.onDragMove);
+      document.removeEventListener("mouseup", this.endDrag);
+      document.body.classList.remove("dragging");
+      this.clampFloating();
     },
   },
 };
 </script>
 
-<style lang="scss">
+<style>
 #app {
-  height: calc(100% - 2rem);
-  width: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: var(--gap-outer);
+  box-sizing: border-box;
   color: var(--fg);
-  padding: 1rem;
   background-size: cover;
   background-position: center;
+  transition: background-image 0.4s ease;
 }
+
 #screen {
-  height: 100%;
-  width: 100%;
   position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
-/* the resizable wrapper is position: relative by default, so in the floating
-   layout the windows would stack in the document flow instead of sitting at
-   their configured position */
-#screen.floating .resizable-component {
+body.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.gutter {
   position: absolute;
+  z-index: 15;
+  border-radius: 999px;
+  transition: background 0.15s ease;
 }
 
-#screen.floating .resizable-component.focused {
-  z-index: 2;
+.gutter.row {
+  cursor: col-resize;
+}
+.gutter.col {
+  cursor: row-resize;
 }
 
-#screen.tiled {
-  display: grid;
-  grid-gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  /* a tiling layout shares the available space, rows must be able to shrink
-     below their content size instead of overflowing the screen */
-  grid-auto-rows: minmax(0, 1fr);
-}
-#screen.tiled .resizable-component {
-  position: relative;
-  top: unset !important;
-  left: unset !important;
-  width: unset !important;
-  height: unset !important;
+.gutter:hover {
+  background: var(--accent_1);
+  opacity: 0.6;
 }
 
-*:focus {
-  outline: none;
+.empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  text-align: center;
 }
 
-.application-wrapper {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+.empty-hint p {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.application {
-  width: 100%;
-  height: 100%;
-}
-
-.fullscreen {
-  height: 100%;
-  width: 100%;
+.empty-keys {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  opacity: 0.75;
 }
 </style>

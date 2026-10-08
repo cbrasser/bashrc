@@ -7,8 +7,8 @@
         v-for="(task, index) in todos.active"
         v-bind:key="task.name + index"
       >
-        <div class="todo-name">&gt; {{ task.name }}</div>
-        <div class="todo-tags">
+        <div class="todo-main">
+          <span class="todo-name">&gt; {{ task.name }}</span>
           <span
             class="tag"
             v-for="(tag, tagIndex) in task.tags"
@@ -19,9 +19,9 @@
             {{ tag }}
           </span>
         </div>
-        <div class="todo-complete" v-on:click="completeTask(index)" title="done">
-          <i class="fas fa-check"></i>
-        </div>
+        <button class="todo-complete" v-on:click="completeTask(index)" title="done">
+          <wm-icon name="check" :size="13" />
+        </button>
         <div class="todo-text" v-if="task.description">{{ task.description }}</div>
       </div>
     </div>
@@ -49,8 +49,11 @@
 </template>
 
 <script>
+import wmIcon from "../wm/icon";
+
 export default {
   name: "todo",
+  components: { wmIcon },
   data: function () {
     return {
       todos: {
@@ -66,13 +69,13 @@ export default {
       colors: [
         "var(--cyan)",
         "var(--blue)",
-        "var(--darkblue)",
+        "var(--blue)",
         "var(--orange)",
         "var(--yellow)",
         "var(--pink)",
         "var(--green)",
         "var(--red)",
-        "var(--white)",
+        "var(--fg)",
       ],
     };
   },
@@ -105,7 +108,7 @@ export default {
     getTagColor: function (tag) {
       // a tag can be missing from the list when the stored data is older
       const found = this.findTag(tag);
-      return found ? found.color : "var(--white)";
+      return found ? found.color : "var(--fg)";
     },
     setTagColor: function (color) {
       const tag = this.findTag(this.selectedTag);
@@ -159,7 +162,7 @@ export default {
     addTagsIfNew: function (tags) {
       const newTags = tags.filter((t) => !this.findTag(t));
       this.todos.tags = this.todos.tags.concat(
-        newTags.map((t) => ({ name: t, color: "var(--white)" }))
+        newTags.map((t) => ({ name: t, color: "var(--fg)" }))
       );
     },
     completeTask: function (index) {
@@ -178,83 +181,118 @@ export default {
 </script>
 
 <style>
-.todo-name,
-.todo-tags,
-.todo-complete {
-  display: inline;
-}
-
-.todo-complete {
-  float: right;
-  cursor: pointer;
-}
-
 .todo-wrapper {
-  opacity: 0.95;
-  height: 100%;
-  position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  position: relative;
   overflow: hidden;
+  font-size: 0.88rem;
+}
+
+.todo-title {
+  flex: none;
+  margin-bottom: 0.7rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .todo-list {
   flex: 1;
-  overflow-y: auto;
-  scrollbar-width: none;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .todo-entry {
-  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.todo-title {
-  text-transform: uppercase;
-  margin-bottom: 1rem;
+.todo-name {
+  color: var(--fg);
 }
 
 .todo-text {
-  font-size: 0.8rem;
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.todo-complete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.todo-complete:hover {
+  background: var(--green);
+  color: var(--bg);
 }
 
 .tag {
-  color: var(--dark);
-  font-size: 0.8rem;
-  padding: 0.1rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--bg);
+  font-size: 0.66rem;
   cursor: pointer;
-  margin-right: 0.3rem;
-  border-radius: 3px;
 }
 
 .todo-prompt {
+  flex: none;
   display: flex;
   align-items: center;
-  width: 100%;
-  height: 22px;
+  gap: 0.4rem;
   margin-top: 0.5rem;
-  overflow: hidden;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
 }
 
 .todo-prompt input {
-  flex-grow: 1;
-  background: none;
+  flex: 1;
+  min-width: 0;
   border: none;
-  margin-left: 0.3rem;
+  background: none;
   color: var(--fg);
   font-family: inherit;
+  font-size: 0.82rem;
+  caret-color: var(--accent_2);
+}
+
+.todo-prompt-label {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--green);
+  color: var(--bg);
+  font-size: 0.68rem;
 }
 
 .color-picker {
-  display: flex;
-  opacity: 0;
-  z-index: 1;
-  pointer-events: none;
   position: absolute;
-  bottom: 0;
   left: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
   width: 100%;
-  transition: opacity 0.6s;
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
 }
 
 .color-picker.open {
@@ -263,17 +301,8 @@ export default {
 }
 
 .color {
-  height: 20px;
-  width: 40px;
-  display: inline-block;
-  cursor: pointer;
+  height: 22px;
   flex-grow: 1;
-}
-
-.todo-prompt-label {
-  margin-right: 0.2rem;
-  padding: 0 0.2rem;
-  background-color: var(--green);
-  color: var(--dark);
+  cursor: pointer;
 }
 </style>

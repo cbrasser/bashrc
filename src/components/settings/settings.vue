@@ -1,375 +1,494 @@
 <template>
-  <div class="settings-wrapper" :class="{ open: open }">
-    <div id="submenu-view" class="settings-section">
-      <div class="apps">
-        <div
-          class="app-icon"
-          :class="{ active: terminalActive }"
-          @click="toggleApp('terminal')"
+  <aside class="settings" :class="{ open: open }">
+    <header class="settings-head">
+      <h2>settings</h2>
+      <button class="icon-button" v-on:click="$emit('close')">
+        <wm-icon name="close" :size="14" />
+      </button>
+    </header>
+
+    <section class="settings-block">
+      <h3>launch</h3>
+      <div class="launchers">
+        <button
+          v-for="app in apps"
+          :key="app.name"
+          class="launcher"
+          v-on:click="$emit('spawn', app.name)"
         >
-          <i class="fas fa-terminal"></i>
-        </div>
-        <div
-          class="app-icon"
-          :class="{ active: fmActive }"
-          @click="toggleApp('filemanager')"
+          <wm-icon :name="app.icon" :size="16" />
+          <span>{{ app.name }}</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="settings-block">
+      <h3>theme</h3>
+      <div class="themes">
+        <button
+          v-for="(theme, key) in themes"
+          :key="key"
+          class="theme"
+          :class="{ active: key === config.theme }"
+          :title="theme.name"
+          v-on:click="setTheme(key)"
         >
-          <i class="far fa-hdd"></i>
-        </div>
-        <div
-          class="app-icon"
-          :class="{ active: weatherActive }"
-          @click="toggleApp('weather')"
-        >
-          <i class="fas fa-smog"></i>
-        </div>
-        <div
-          class="app-icon"
-          :class="{ active: todoActive }"
-          @click="toggleApp('todo')"
-        >
-          <i class="fas fa-clipboard-list"></i>
-        </div>
+          <span class="swatches">
+            <i :style="{ background: theme.colors.bg }"></i>
+            <i :style="{ background: theme.colors.accent_1 }"></i>
+            <i :style="{ background: theme.colors.accent_2 }"></i>
+            <i :style="{ background: theme.colors.accent_3 }"></i>
+          </span>
+          <span class="theme-name">{{ theme.name }}</span>
+        </button>
       </div>
-    </div>
-    <div class="settings-section toggle">
-      <div class="label">tile</div>
-      <div
-        class="layout-toggle"
-        @click="toggleLayout"
-        :class="{ active: config.windowState === 'tiled' }"
-      >
-        <div class="toggle-button"></div>
-      </div>
-    </div>
-    <div class="settings-section">
-      <span>City</span>
-      <input
-        type="text"
-        id="city"
-        v-model="config.city"
-        @input="updateConfig"
-      />
-    </div>
-    <div class="settings-section">
-      <span>background image</span>
-      <input
-        type="text"
-        v-model="config.backgroundImage"
-        @input="updateConfig"
-      />
-    </div>
-    <div class="settings-section expand" :class="{ open: colorsOpen }">
-      <div class="expand-title" @click="colorsOpen = !colorsOpen">
-        <div class="title">colors</div>
-        <i class="fas fa-chevron-down"></i>
-      </div>
-      <div class="expand-content">
-        <div class="colors">
-          <div class="color">
-            <div class="color-name">Text</div>
-            <div
-              class="color-preview"
-              :style="{ backgroundColor: config.colors.fg }"
-            ></div>
-            <input
-              type="text"
-              v-model="config.colors.fg"
-              @input="updateConfig"
-            />
-          </div>
-          <div class="color">
-            <div class="color-name">Background</div>
-            <div
-              class="color-preview"
-              :style="{ backgroundColor: config.colors.bg }"
-            ></div>
-            <input
-              type="text"
-              v-model="config.colors.bg"
-              @input="updateConfig"
-            />
-          </div>
-          <div class="color">
-            <div class="color-name">Accent 1</div>
-            <div
-              class="color-preview"
-              :style="{ backgroundColor: config.colors.accent_1 }"
-            ></div>
-            <input
-              type="text"
-              v-model="config.colors.accent_1"
-              @input="updateConfig"
-            />
-          </div>
-          <div class="color">
-            <div class="color-name">Accent 2</div>
-            <div
-              class="color-preview"
-              :style="{ backgroundColor: config.colors.accent_2 }"
-            ></div>
-            <input
-              type="text"
-              v-model="config.colors.accent_2"
-              @input="updateConfig"
-            />
-          </div>
-          <div class="color">
-            <div class="color-name">Accent 3</div>
-            <div
-              class="color-preview"
-              :style="{ backgroundColor: config.colors.accent_3 }"
-            ></div>
-            <input
-              type="text"
-              v-model="config.colors.accent_3"
-              @input="updateConfig"
-            />
-          </div>
-        </div>
-        <div class="opacity"></div>
-        <div class="background"></div>
-        <div class="window-borders"></div>
-      </div>
-    </div>
-    <div class="settings-section expand" :class="{ open: windowsOpen }">
-      <div class="expand-title" @click="windowsOpen = !windowsOpen">
-        <div class="title">windows</div>
-        <i class="fas fa-chevron-down"></i>
-      </div>
-      <div class="expand-content">
-        <div class="settings-section toggle">
-          <div class="label">borders</div>
-          <div
-            class="layout-toggle"
-            @click="toggleBorders"
-            :class="{ active: config.windowBorders }"
+    </section>
+
+    <section class="settings-block">
+      <h3>window manager</h3>
+      <label class="row">
+        <span>outer gap</span>
+        <input type="range" min="0" max="40" step="1" :value="config.gapOuter"
+          v-on:input="update('gapOuter', Number($event.target.value))" />
+        <output>{{ config.gapOuter }}</output>
+      </label>
+      <label class="row">
+        <span>inner gap</span>
+        <input type="range" min="0" max="40" step="1" :value="config.gapInner"
+          v-on:input="update('gapInner', Number($event.target.value))" />
+        <output>{{ config.gapInner }}</output>
+      </label>
+      <label class="row">
+        <span>rounding</span>
+        <input type="range" min="0" max="28" step="1" :value="config.rounding"
+          v-on:input="update('rounding', Number($event.target.value))" />
+        <output>{{ config.rounding }}</output>
+      </label>
+      <label class="row">
+        <span>border</span>
+        <input type="range" min="0" max="6" step="1" :value="config.borderWidth"
+          v-on:input="update('borderWidth', Number($event.target.value))" />
+        <output>{{ config.borderWidth }}</output>
+      </label>
+      <label class="row">
+        <span>opacity</span>
+        <input type="range" min="0.3" max="1" step="0.02" :value="config.opacity"
+          v-on:input="update('opacity', Number($event.target.value))" />
+        <output>{{ Math.round(config.opacity * 100) }}%</output>
+      </label>
+
+      <label class="row toggle">
+        <span>blur</span>
+        <button class="switch" :class="{ on: config.blur }"
+          v-on:click.prevent="update('blur', !config.blur)"><i></i></button>
+      </label>
+      <label class="row toggle">
+        <span>animations</span>
+        <button class="switch" :class="{ on: config.animations }"
+          v-on:click.prevent="update('animations', !config.animations)"><i></i></button>
+      </label>
+      <label class="row toggle">
+        <span>status bar</span>
+        <button class="switch" :class="{ on: config.showBar }"
+          v-on:click.prevent="update('showBar', !config.showBar)"><i></i></button>
+      </label>
+    </section>
+
+    <section class="settings-block">
+      <h3>keybindings</h3>
+      <div class="row">
+        <span>modifier</span>
+        <div class="segmented">
+          <button
+            v-for="mod in modifiers"
+            :key="mod.key"
+            :class="{ active: config.modifier === mod.key }"
+            v-on:click="update('modifier', mod.key)"
           >
-            <div class="toggle-button"></div>
-          </div>
-        </div>
-        <div class="settings-section">
-          <span>opacity</span>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            v-model.number="config.opacity"
-            @input="updateConfig"
-          />
+            {{ mod.label }}
+          </button>
         </div>
       </div>
-    </div>
-    <div class="settings-section">
-      <div class="reset" @click="resetConfig">reset to defaults</div>
-    </div>
-  </div>
+      <p class="hint">
+        super and ctrl collide with shortcuts the browser keeps for itself, alt
+        is the one that always reaches the page.
+      </p>
+      <button class="wide-button" v-on:click="$emit('cheatsheet')">
+        <wm-icon name="keyboard" :size="14" /> show all keybindings
+      </button>
+    </section>
+
+    <section class="settings-block">
+      <h3>applets</h3>
+      <label class="row">
+        <span>city</span>
+        <input class="text" type="text" :value="config.city"
+          v-on:input="update('city', $event.target.value)" />
+      </label>
+      <label class="row">
+        <span>wallpaper</span>
+        <input class="text" type="text" placeholder="image url"
+          :value="config.backgroundImage"
+          v-on:input="update('backgroundImage', $event.target.value)" />
+      </label>
+    </section>
+
+    <section class="settings-block danger">
+      <button class="wide-button" v-on:click="$store.dispatch('resetLayout')">
+        <wm-icon name="layers" :size="14" /> reset layout
+      </button>
+      <button class="wide-button" v-on:click="$store.dispatch('resetConfig')">
+        <wm-icon name="trash" :size="14" /> reset settings
+      </button>
+    </section>
+  </aside>
 </template>
 
 <script>
+import wmIcon from "../wm/icon";
+import { THEMES } from "../../util/themes";
+
 export default {
   name: "settings",
-  data: function () {
-    return {
-      colorsOpen: false,
-      windowsOpen: false,
-    };
-  },
+  components: { wmIcon },
   props: {
     open: Boolean,
   },
-  methods: {
-    toggleBorders() {
-      this.config.windowBorders = !this.config.windowBorders;
-      this.$store.dispatch("updateConfig", this.config);
-    },
-    toggleLayout() {
-      this.config.windowState === "floating"
-        ? (this.config.windowState = "tiled")
-        : (this.config.windowState = "floating");
-      this.$store.dispatch("updateConfig", this.config);
-    },
-    updateConfig() {
-      this.$store.dispatch("updateConfig", this.config);
-    },
-    toggleApp(name) {
-      const app = this.config.apps.find((a) => a.name === name);
-      if (!app) return;
-      app.visible = !app.visible;
-      this.$store.dispatch("updateConfig", this.config);
-    },
-    isVisible(name) {
-      // an app can be missing from a config written by an older version
-      const app = this.config.apps.find((a) => a.name === name);
-      return app ? app.visible : false;
-    },
-    resetConfig() {
-      this.$store.dispatch("resetConfig");
-    },
+  data() {
+    return {
+      apps: [
+        { name: "terminal", icon: "terminal" },
+        { name: "filemanager", icon: "folder" },
+        { name: "weather", icon: "cloud" },
+        { name: "todo", icon: "todo" },
+      ],
+      modifiers: [
+        { key: "alt", label: "alt" },
+        { key: "ctrl", label: "ctrl" },
+        { key: "meta", label: "super" },
+      ],
+    };
   },
   computed: {
     config() {
       return this.$store.state.config;
     },
-    terminalActive() {
-      return this.isVisible("terminal");
+    themes() {
+      return THEMES;
     },
-    fmActive() {
-      return this.isVisible("filemanager");
+  },
+  methods: {
+    update(key, value) {
+      this.$store.dispatch("updateConfig", { [key]: value });
     },
-    weatherActive() {
-      return this.isVisible("weather");
-    },
-    todoActive() {
-      return this.isVisible("todo");
+    setTheme(key) {
+      // picking a preset drops colour tweaks made on the previous one
+      this.$store.dispatch("updateConfig", { theme: key, colorOverrides: {} });
     },
   },
 };
 </script>
 
 <style>
-.expand-content h3 {
-  font-size: 18px;
-  margin-bottom: 4px;
-  margin-top: 4px;
-}
-.colors {
-  margin-top: 1rem;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-.color {
-  width: max-content;
-  padding: 4px;
-  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2),
-    0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
-  border-radius: 10px;
-}
-.color-name {
-  font-size: 16px;
-}
-.color input {
-  width: 80px;
-}
-.color span {
-  font-size: 14px;
-}
-.color-preview {
-  height: 30px;
-  width: 100%;
-}
-.expand.open .expand-content {
-  max-height: 400px;
-}
-.expand-title {
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.expand-content {
-  max-height: 0;
-  transition: 0.3s ease-in-out;
-  overflow: hidden;
-}
-.layout-toggle {
-  width: 40px;
-  height: 20px;
-  overflow: hidden;
-  background-color: var(--bg);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: 0.5s ease-in-out;
-  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2),
-    0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
-}
-.layout-toggle.active {
-  background-color: var(--fg);
-}
-.toggle-button {
-  width: 20px;
-  height: 20px;
-  background-color: var(--accent_1);
-  border-radius: 50%;
-  transition: 0.3s ease-in-out;
-}
-.layout-toggle.active .toggle-button {
-  transform: translateX(100%);
-  background-color: var(--accent_2);
-}
-.apps {
-  display: flex;
-}
-.app-icon {
-  margin-right: 8px;
-  cursor: pointer;
-  padding: 8px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 50%;
-  width: 25px;
-  height: 25px;
-  background-color: var(--fg);
-  transition: 0.3s ease-in-out;
-}
-.app-icon i {
-  transition: 0.3s ease-in-out;
-  color: var(--accent_2);
-}
-.app-icon.active {
-  background-color: var(--accent_1);
-}
-.app-icon.active i {
-  color: var(--fg);
-}
-
-.settings-wrapper {
-  z-index: 99;
-  padding: 1rem;
-  border-radius: 12px;
-  background-color: var(--bg);
-  position: absolute;
-  right: 20px;
-  top: 20px;
-  max-height: calc(100% - 40px);
+.settings {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 80;
+  width: min(330px, 92vw);
+  height: 100%;
+  padding: 1.1rem 1.2rem 2rem;
+  box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: none;
-  /* the panel sits inside the padded screen, so it has to travel a bit
-     further than its own width to be completely off screen */
-  transform: translateX(calc(100% + 4rem));
-  transition: 0.3s ease-in-out;
-  display: grid;
+  background: var(--bg-translucent);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border-left: 1px solid var(--line);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.4);
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.settings-section {
-  padding: 1rem;
-  border-radius: 12px;
-  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2),
-    0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
+
+.settings::-webkit-scrollbar {
+  display: none;
 }
-.settings-section .label {
-  margin-right: 1rem;
-}
-.settings-section.toggle {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-}
-.settings-wrapper.open {
+
+.settings.open {
   transform: translateX(0);
 }
 
-.settings-wrapper input[type="text"] {
-  background-color: var(--bg);
-  border: none;
-  margin-left: 0;
-  color: var(--fg);
-  font-family: inherit;
+.settings-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.2rem;
 }
 
-.reset {
+.settings-head h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.icon-button {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
   cursor: pointer;
-  color: var(--accent_2);
+}
+.icon-button:hover {
+  color: var(--fg);
+}
+
+.settings-block {
+  margin-bottom: 1.5rem;
+}
+
+.settings-block h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.launchers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.launcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.launcher:hover {
+  border-color: var(--accent_1);
+  color: var(--accent_1);
+  transform: translateY(-1px);
+}
+
+.themes {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.theme {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.theme:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.theme.active {
+  border-color: var(--accent_1);
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.swatches {
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.swatches i {
+  width: 13px;
+  height: 18px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.row > span {
+  flex: none;
+  width: 78px;
+}
+
+.row output {
+  flex: none;
+  width: 34px;
+  text-align: right;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 3px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.settings input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent_1);
+  border: none;
+  cursor: grab;
+}
+
+.settings input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent_1);
+}
+
+.settings input.text {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.72rem;
+}
+
+.settings input.text:focus {
+  border-color: var(--accent_1);
+}
+
+.row.toggle {
+  justify-content: space-between;
+}
+
+.switch {
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.switch i {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.switch.on {
+  background: var(--accent_1);
+  opacity: 0.85;
+}
+
+.switch.on i {
+  transform: translateX(16px);
+  background: var(--bg);
+}
+
+.segmented {
+  display: flex;
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 0.3rem 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.segmented button.active {
+  background: var(--accent_1);
+  color: var(--bg);
+}
+
+.hint {
+  margin: 0.5rem 0 0.7rem;
+  font-size: 0.65rem;
+  line-height: 1.5;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.wide-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.wide-button:hover {
+  border-color: var(--accent_1);
+  color: var(--accent_1);
+}
+
+.danger .wide-button:hover {
+  border-color: var(--red);
+  color: var(--red);
 }
 </style>

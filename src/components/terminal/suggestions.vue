@@ -27,20 +27,33 @@ export default {
 </script>
 
 <style>
+#suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0.45rem 0 0;
+  padding: 0;
+}
+
 #suggestions li {
   list-style: none;
   cursor: pointer;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  transition: all 0.14s ease;
 }
 
-#suggestions {
-  column-count: 3;
-  column-width: 100px;
-  padding-left: 0;
-  margin: 0;
+#suggestions li:hover {
+  color: var(--fg);
+  border-color: var(--accent_1);
 }
 
 .activeSuggestion {
-  background-color: var(--accent_1);
-  color: var(--bg);
+  background: var(--accent_1);
+  border-color: var(--accent_1) !important;
+  color: var(--bg) !important;
 }
 </style>
