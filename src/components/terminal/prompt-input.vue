@@ -145,22 +145,23 @@ export default {
 </script>
 
 <style>
-.form-wrapper {
-  width: auto;
-  overflow: hidden;
+.prompt-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt-input form {
+  display: block;
 }
 
 #input_field {
   width: 100%;
-  outline: none !important;
+  padding: 0;
   background: none;
   border: none;
   color: var(--fg);
   font-family: inherit;
-  font-size: 1em;
-}
-
-form {
-  display: inline;
+  font-size: inherit;
+  caret-color: var(--accent_2);
 }
 </style>

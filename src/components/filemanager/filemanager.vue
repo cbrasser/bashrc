@@ -6,44 +6,77 @@
     v-on:keydown="onKey"
     v-on:click="focus"
   >
-    <div class="wrapper">
-      <ul>
-        <li
-          v-for="(node, index) in content"
-          v-bind:key="node.type + node.name"
-          v-on:click="enterNode(node)"
-          v-bind:class="{
-            selected: index == selected,
-            marked: markedRemove.indexOf(node.name) != -1,
-            directory: node.type == 'directory',
-            file: node.type == 'file',
-          }"
-        >
-          {{ node.name }}
-        </li>
-      </ul>
-      <div class="fm-prompt-wrapper" v-if="promptActive">
-        <prompt
-          v-bind:label="type"
-          type="text"
-          v-bind:placeholder="placeholders[type]"
-          v-on:submit="onSubmit"
-          v-on:cancel="cancel"
-          ref="filePrompt"
-        ></prompt>
-      </div>
-      <div class="status-bar">
-        <span class="position">{{ content.length ? selected + 1 : 0 }}/{{ content.length }}</span>
-        <span class="wd">{{ dirname }}</span>
-        <span class="fm-error" v-if="error">{{ error }}</span>
-        <span class="filter" v-if="filter.length > 0">filter: {{ filter }}</span>
-      </div>
+    <nav class="breadcrumb">
+      <button
+        v-for="(crumb, index) in breadcrumbs"
+        v-bind:key="index"
+        class="crumb"
+        :class="{ current: index === breadcrumbs.length - 1 }"
+        v-on:click.stop="goUp(breadcrumbs.length - 1 - index)"
+      >
+        {{ crumb }}
+      </button>
+      <span class="crumb-filter" v-if="filter">/{{ filter }}</span>
+    </nav>
+
+    <ul v-if="content.length">
+      <li
+        v-for="(node, index) in content"
+        v-bind:key="node.type + node.name"
+        v-on:click="enterNode(node)"
+        v-bind:title="node.url || node.name"
+        v-bind:class="{
+          selected: index == selected,
+          marked: markedRemove.indexOf(node.name) != -1,
+          directory: node.type == 'directory',
+          file: node.type == 'file',
+        }"
+      >
+        <wm-icon :name="node.type === 'directory' ? 'folder' : 'file'" :size="13" />
+        <span class="entry-name">{{ node.name }}</span>
+        <span class="entry-meta">{{ node.meta }}</span>
+      </li>
+    </ul>
+
+    <div class="fm-empty" v-else>
+      <wm-icon name="folder" :size="22" />
+      <p v-if="filter">nothing matches “{{ filter }}”</p>
+      <p v-else>empty directory</p>
+      <p class="fm-empty-keys">
+        <kbd>n</kbd> new folder · <kbd>f</kbd> new bookmark
+      </p>
     </div>
+
+    <div class="fm-prompt-wrapper" v-if="promptActive">
+      <prompt
+        v-bind:label="type"
+        type="text"
+        v-bind:placeholder="placeholders[type]"
+        v-on:submit="onSubmit"
+        v-on:cancel="cancel"
+        ref="filePrompt"
+      ></prompt>
+    </div>
+
+    <footer class="status-bar">
+      <span class="position">
+        {{ content.length ? selected + 1 : 0 }}/{{ content.length }}
+      </span>
+      <span class="fm-error" v-if="error">{{ error }}</span>
+      <span class="marked-count" v-else-if="markedRemove.length">
+        {{ markedRemove.length }} marked · <kbd>p</kbd> to delete
+      </span>
+      <span class="fm-target" v-else-if="selectedNode">{{ target }}</span>
+      <span class="fm-keys">
+        <kbd>hjkl</kbd><kbd>n</kbd><kbd>f</kbd><kbd>d</kbd><kbd>/</kbd>
+      </span>
+    </footer>
   </div>
 </template>
 
 <script>
 import prompt from "./prompt";
+import wmIcon from "../wm/icon";
 
 export default {
   name: "filemanager",
@@ -65,6 +98,7 @@ export default {
   },
   components: {
     prompt,
+    wmIcon,
   },
   mounted: function () {
     this.focus();
@@ -227,6 +261,23 @@ export default {
     persist: function () {
       this.$store.dispatch("updateFileTree", this.fs);
     },
+    /* Jump several levels up at once from the breadcrumb. */
+    goUp: function (levels) {
+      for (let step = 0; step < levels; step++) {
+        this.changeDirectory("..");
+      }
+    },
+    countLabel: function (directory) {
+      const total = directory.getChildren().length + directory.getFiles().length;
+      return total === 1 ? "1 item" : `${total} items`;
+    },
+    hostOf: function (url) {
+      try {
+        return new URL(url).hostname.replace(/^www\./, "");
+      } catch (e) {
+        return url;
+      }
+    },
     showErrors: function (res) {
       if (res && res.messages && res.messages.length > 0) {
         this.error = res.messages[0].value;
@@ -247,12 +298,14 @@ export default {
       let content = this.wd.getChildren().map((c) => ({
         name: c.getName(),
         type: "directory",
+        meta: this.countLabel(c),
       }));
       content = content.concat(
         this.wd.getFiles().map((f) => ({
           name: f.getName(),
           type: "file",
           url: f.getUrl(),
+          meta: this.hostOf(f.getUrl()),
         }))
       );
       if (this.filter.length > 0) {
@@ -264,90 +317,253 @@ export default {
     dirname: function () {
       return this.wd && this.wd.getPath ? this.wd.getPath() : "";
     },
+    breadcrumbs: function () {
+      return this.dirname ? this.dirname.split("/") : [];
+    },
+    selectedNode: function () {
+      return this.content[this.selected] || null;
+    },
+    target: function () {
+      const node = this.selectedNode;
+      if (!node) return "";
+      return node.type === "file" ? node.url : `${node.meta} inside`;
+    },
   },
 };
 </script>
 
 <style>
 #filemanager {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   outline: none;
+  font-size: 0.88rem;
+  /* so the status bar can drop its key reminder in a narrow window rather
+     than at a narrow screen: a tile can be small on a wide monitor */
+  container-type: inline-size;
 }
 
-.wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
+.breadcrumb {
+  flex: none;
   display: flex;
-  overflow: hidden;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.crumb {
+  padding: 1px 5px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+
+.crumb:not(:last-child)::after {
+  content: "/";
+  margin-left: 5px;
+  color: var(--line);
+}
+
+.crumb:hover {
+  color: var(--accent_1);
+}
+
+.crumb.current {
+  color: var(--fg);
+  cursor: default;
+}
+
+.crumb-filter {
+  color: var(--accent_3);
+  font-size: 0.72rem;
 }
 
 #filemanager ul {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   padding: 0;
   margin: 0;
-  width: 100%;
   overflow-y: auto;
-  scrollbar-width: none;
-  max-height: calc(100% - 22px);
 }
 
-.directory {
+#filemanager li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 2px 7px;
+  border-radius: 6px;
   cursor: pointer;
-  color: var(--cyan);
-}
-.file {
-  cursor: pointer;
-  color: var(--yellow);
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.directory.selected {
-  background-color: var(--cyan);
-  color: var(--dark);
-}
-.file.selected {
-  background-color: var(--yellow);
-  color: var(--dark);
-}
-
-.status-bar {
-  position: absolute;
-  bottom: 0;
-  height: 22px;
-  width: 100%;
-  font-size: 0.8rem;
-  line-height: 22px;
-  color: var(--dark);
-  background-color: var(--red);
+.entry-name {
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.filter {
-  float: right;
-}
-
-.fm-error {
-  margin-left: 1rem;
-}
-
-/* has to beat .directory.selected / .file.selected, an entry can be both */
-.directory.marked,
-.file.marked,
-.directory.selected.marked,
-.file.selected.marked {
-  background-color: var(--red);
-  color: var(--dark);
-}
-.wd {
-  margin-left: 1rem;
-}
-.fm-prompt-wrapper {
-  position: absolute;
-  bottom: 22px;
-  width: 100%;
-  height: 22px;
-  margin: auto;
+/* the host of a bookmark or the size of a folder, only when there is room */
+.entry-meta {
+  margin-left: auto;
+  padding-left: 0.6rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  opacity: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.14s ease;
+}
+
+#filemanager li:hover .entry-meta,
+#filemanager li.selected .entry-meta {
+  opacity: 0.75;
+}
+
+#filemanager .directory {
+  color: var(--accent_1);
+}
+
+#filemanager .file {
+  color: var(--yellow);
+}
+
+#filemanager li:hover {
+  background: var(--surface);
+}
+
+/*
+ * The selection is a tinted row with a bar on the leading edge rather than a
+ * solid block: at these window sizes a full bar of colour drowns the list.
+ */
+#filemanager li.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+#filemanager li.selected {
+  background: var(--surface);
+}
+
+#filemanager .directory.selected {
+  box-shadow: inset 0 0 0 1px var(--accent_1);
+}
+
+#filemanager .file.selected {
+  box-shadow: inset 0 0 0 1px var(--yellow);
+}
+
+/* has to beat the selected styles, an entry can be both */
+#filemanager li.marked,
+#filemanager li.selected.marked {
+  color: var(--red);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--red);
+  text-decoration: line-through;
+}
+
+.fm-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.fm-empty p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.fm-empty-keys {
+  opacity: 0.7;
+  font-size: 0.72rem !important;
+}
+
+.status-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status-bar .position {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar .fm-error {
+  color: var(--red);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar .marked-count {
+  color: var(--red);
+}
+
+.status-bar .fm-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the key reminder is the first thing to go when the window gets narrow */
+.status-bar .fm-keys {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0.5;
+}
+
+#filemanager kbd {
+  min-width: 0;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.66rem;
+}
+
+@container (max-width: 260px) {
+  .status-bar .fm-keys {
+    display: none;
+  }
+}
+
+.fm-prompt-wrapper {
+  flex: none;
+  margin-top: 0.4rem;
 }
 </style>

@@ -1,12 +1,23 @@
 <template>
   <div class="terminal" v-on:click="focusInput">
+    <div class="scrollback" ref="scrollback">
+      <p class="terminal-hint" v-if="history.length === 0">
+        bookmarks live in a file tree. <code>help</code> lists the commands,
+        <code>tab</code> completes.
+      </p>
+      <term-out
+        v-for="entry in history"
+        v-bind:key="entry.id"
+        v-bind:entry="entry"
+        v-on:cd="onCommandSubmit"
+      />
+    </div>
     <prompt
       v-on:input="onCommand"
       v-on:submit="onCommandSubmit"
       v-bind:wd="wdPath"
       v-bind:suggestions="suggestions"
     />
-    <term-out v-bind:out="out" v-on:cd="onCommandSubmit" />
   </div>
 </template>
 
@@ -17,6 +28,8 @@ import { newResponse } from "../response";
 import { log } from "../logger";
 import { get_browser_info } from "../utility";
 
+const SCROLLBACK_LIMIT = 100;
+
 export default {
   name: "terminal",
   components: {
@@ -25,8 +38,9 @@ export default {
   },
   data: function () {
     return {
-      out: { dirs: [], files: [], messages: [] },
+      history: [],
       suggestions: [],
+      counter: 0,
       uptimeStart: new Date().getTime(),
     };
   },
@@ -83,7 +97,7 @@ export default {
           res.messages.push({
             type: "value",
             value: "DE > " + get_browser_info().name,
-            css: { color: "var(--darkblue)" },
+            css: { color: "var(--blue)" },
           });
           return res;
         },
@@ -145,7 +159,6 @@ export default {
     },
     onCommandSubmit: function (com) {
       this.suggestions = [];
-      this.showResponse(newResponse());
       if (!com || com.trim().length == 0) {
         return;
       }
@@ -153,17 +166,25 @@ export default {
       const parts = com.trim().split(/\s+/);
       const command = parts[0];
       const args = parts.slice(1);
+      const path = this.wdPath;
+
+      if (command === "clear") {
+        this.history = [];
+        return;
+      }
 
       if (this.builtins[command]) {
-        this.showResponse(this.builtins[command](args));
+        this.record(path, com, this.builtins[command](args));
         return;
       }
 
       const res = this.fs.call(command, this.wd, args);
       if (!res) {
-        const notFound = newResponse();
-        notFound.error(`bashrc: command not found: ${command}`);
-        this.showResponse(notFound);
+        this.record(
+          path,
+          com,
+          newResponse().error(`bashrc: command not found: ${command}`)
+        );
         return;
       }
       // a command that changed the tree has to be written back to the store
@@ -173,17 +194,30 @@ export default {
       if (res.directory) {
         this.$store.dispatch("updateWorkingDirectory", res.directory);
       }
-      this.showResponse(res);
+      this.record(path, com, res);
     },
-    showResponse: function (res) {
-      if (!res) {
-        return;
+
+    /* Keep the command and what it printed, the way a real shell keeps its
+       scrollback instead of replacing the last output. */
+    record: function (path, command, res) {
+      this.counter += 1;
+      this.history.push({
+        id: this.counter,
+        path,
+        command,
+        dirs: (res && res.dirs) || [],
+        files: (res && res.files) || [],
+        messages: (res && res.messages) || [],
+      });
+      if (this.history.length > SCROLLBACK_LIMIT) {
+        this.history.splice(0, this.history.length - SCROLLBACK_LIMIT);
       }
-      this.out = {
-        dirs: res.dirs || [],
-        files: res.files || [],
-        messages: res.messages || [],
-      };
+      this.$nextTick(this.scrollToBottom);
+    },
+
+    scrollToBottom: function () {
+      const element = this.$refs.scrollback;
+      if (element) element.scrollTop = element.scrollHeight;
     },
     suggest: function (input) {
       if (!input || input.length == 0) {
@@ -228,10 +262,43 @@ export default {
 
 <style>
 .terminal {
-  opacity: 0.95;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-size: 0.9rem;
+  cursor: text;
+}
+
+.scrollback {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Keeps the output sitting on the prompt while the buffer is short. An auto
+ * margin is used rather than justify-content: flex-end, which makes the top of
+ * an overflowing scroll container unreachable.
+ */
+.scrollback > :first-child {
+  margin-top: auto;
+}
+
+.terminal-hint {
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.terminal-hint code {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--accent_3);
+  font-size: 0.74rem;
 }
 </style>

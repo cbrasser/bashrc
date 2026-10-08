@@ -1,61 +1,135 @@
 <template>
-  <!-- Terminal Output -->
-  <div id="console_out" class="console-out">
-    <a v-for="(dir, index) in out.dirs" v-bind:key=index v-on:click="$emit('cd', `cd ${dir}`)" class="directory" >{{dir}}</a>
-    <a v-for="(file, index) in out.files" v-bind:key=index class="file" :href="file.url" target="_blank" rel="noopener">{{file.name}}</a>
-    <a v-for="(msg, index) in out.messages" v-bind:key=index :class="msg.type" :style="msg.css">{{msg.value}}</a>
+  <div class="entry">
+    <div class="entry-command">
+      <span class="entry-path">{{ entry.path }}</span>
+      <span class="entry-caret">❯</span>
+      <span class="entry-text">{{ entry.command }}</span>
+    </div>
+
+    <div class="entry-grid" v-if="entry.dirs.length || entry.files.length">
+      <a
+        v-for="(dir, index) in entry.dirs"
+        v-bind:key="'d' + index"
+        class="out-entry directory"
+        v-on:click="$emit('cd', `cd ${dir}`)"
+      >
+        <wm-icon name="folder" :size="13" />
+        <span>{{ dir }}</span>
+      </a>
+      <a
+        v-for="(file, index) in entry.files"
+        v-bind:key="'f' + index"
+        class="out-entry file"
+        :href="file.url"
+        :title="file.url"
+        target="_blank"
+        rel="noopener"
+      >
+        <wm-icon name="file" :size="13" />
+        <span>{{ file.name }}</span>
+      </a>
+    </div>
+
+    <p
+      v-for="(msg, index) in entry.messages"
+      v-bind:key="'m' + index"
+      class="out-message"
+      :class="msg.type"
+      :style="msg.css"
+    >
+      {{ msg.value }}
+    </p>
   </div>
 </template>
 
 <script>
+import wmIcon from "../wm/icon";
+
 export default {
   name: "termOut",
-  data: function() {
-    return {};
-  },
+  components: { wmIcon },
   props: {
-    out: {
+    entry: {
       type: Object,
-      default: () => ({ dirs: [], files: [], messages: [] })
-    }
+      required: true,
+    },
   },
 };
 </script>
 
 <style>
-/* Hide scrollbar for Chrome, Safari and Opera */
-.console-out::-webkit-scrollbar {
-  display: none;
+.entry {
+  margin-bottom: 0.55rem;
 }
 
-/* Hide scrollbar for IE and Edge and firefox */
-.console-out {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.entry-command {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  opacity: 0.75;
 }
 
-.console-out {
-  max-height: 100%;
-  overflow: scroll;
+.entry-path {
+  color: var(--accent_1);
 }
 
-.console-out a {
-  display: block;
-  color: var(--fg);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.console-out .error {
-  color: var(--red);
-}
-.console-out .success {
+.entry-caret {
   color: var(--green);
 }
-.console-out .file {
+
+.entry-text {
+  color: var(--fg);
+  word-break: break-all;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1px 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.out-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.out-entry span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.out-entry:hover {
+  background: var(--surface);
+}
+
+.out-entry.directory {
+  color: var(--accent_1);
+}
+
+.out-entry.file {
   color: var(--yellow);
 }
-.console-out .directory {
-  color: var(--cyan);
+
+.out-message {
+  margin: 0;
+  padding: 1px 0;
+  word-break: break-word;
+}
+
+.out-message.error {
+  color: var(--red);
+}
+
+.out-message.success {
+  color: var(--green);
 }
 </style>

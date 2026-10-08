@@ -1,33 +1,78 @@
 <template>
   <div class="todo-wrapper">
-    <div class="todo-title">todo</div>
+    <header class="todo-head">
+      <span class="todo-title">todo</span>
+      <span class="todo-count" v-if="todos.active.length">
+        {{ todos.active.length }}
+      </span>
+      <button
+        class="todo-done-toggle"
+        v-if="todos.completed.length"
+        :class="{ active: showCompleted }"
+        v-on:click="showCompleted = !showCompleted"
+      >
+        <wm-icon name="archive" :size="12" />
+        {{ todos.completed.length }} done
+      </button>
+    </header>
+
     <div class="todo-list">
+      <p class="todo-empty" v-if="!todos.active.length && !showCompleted">
+        nothing to do.<br />
+        <span>write <code>name [tag]: description</code> below</span>
+      </p>
+
       <div
         class="todo-entry"
         v-for="(task, index) in todos.active"
         v-bind:key="task.name + index"
       >
-        <div class="todo-name">&gt; {{ task.name }}</div>
-        <div class="todo-tags">
+        <button
+          class="todo-check"
+          v-on:click="completeTask(index)"
+          title="mark as done"
+        >
+          <wm-icon name="check" :size="12" />
+        </button>
+        <div class="todo-main">
+          <span class="todo-name">{{ task.name }}</span>
           <span
             class="tag"
             v-for="(tag, tagIndex) in task.tags"
             v-bind:key="tag + tagIndex"
-            v-bind:style="{ 'background-color': getTagColor(tag) }"
+            v-bind:style="{ backgroundColor: getTagColor(tag) }"
+            v-bind:class="{ picking: colorPickerActive && selectedTag === tag }"
             v-on:click="showColorPicker(tag)"
           >
             {{ tag }}
           </span>
         </div>
-        <div class="todo-complete" v-on:click="completeTask(index)" title="done">
-          <i class="fas fa-check"></i>
-        </div>
-        <div class="todo-text" v-if="task.description">{{ task.description }}</div>
+        <p class="todo-text" v-if="task.description">{{ task.description }}</p>
       </div>
+
+      <template v-if="showCompleted">
+        <div class="todo-divider">done</div>
+        <div
+          class="todo-entry completed"
+          v-for="(task, index) in todos.completed"
+          v-bind:key="'c' + task.name + index"
+        >
+          <button
+            class="todo-check done"
+            v-on:click="restoreTask(index)"
+            title="put back"
+          >
+            <wm-icon name="check" :size="12" />
+          </button>
+          <div class="todo-main">
+            <span class="todo-name">{{ task.name }}</span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <form class="todo-prompt" v-on:submit.prevent="addTask">
-      <span class="todo-prompt-label">{{ label }}</span>
+      <wm-icon name="plus" :size="13" />
       <input
         ref="input"
         v-model="input"
@@ -41,7 +86,7 @@
         class="color"
         v-for="(color, index) in colors"
         v-bind:key="color + index"
-        v-bind:style="{ 'background-color': color }"
+        v-bind:style="{ backgroundColor: color }"
         v-on:click="setTagColor(color)"
       ></span>
     </div>
@@ -49,8 +94,11 @@
 </template>
 
 <script>
+import wmIcon from "../wm/icon";
+
 export default {
   name: "todo",
+  components: { wmIcon },
   data: function () {
     return {
       todos: {
@@ -59,20 +107,20 @@ export default {
         tags: [],
       },
       input: "",
-      label: "add",
-      placeholder: "task [tag, tog]: Do this thing finally",
+      placeholder: "task [tag, tag]: description",
       selectedTag: null,
       colorPickerActive: false,
+      showCompleted: false,
       colors: [
+        "var(--accent_1)",
         "var(--cyan)",
         "var(--blue)",
-        "var(--darkblue)",
-        "var(--orange)",
-        "var(--yellow)",
-        "var(--pink)",
         "var(--green)",
+        "var(--yellow)",
+        "var(--orange)",
         "var(--red)",
-        "var(--white)",
+        "var(--pink)",
+        "var(--muted)",
       ],
     };
   },
@@ -105,7 +153,7 @@ export default {
     getTagColor: function (tag) {
       // a tag can be missing from the list when the stored data is older
       const found = this.findTag(tag);
-      return found ? found.color : "var(--white)";
+      return found ? found.color : "var(--muted)";
     },
     setTagColor: function (color) {
       const tag = this.findTag(this.selectedTag);
@@ -126,9 +174,8 @@ export default {
     /* 'name [tag, tag]: description', where tags and description are optional */
     addTask: function () {
       const value = this.input.trim();
-      if (value.length == 0) {
-        return;
-      }
+      if (value.length == 0) return;
+
       const separator = value.indexOf(":");
       const head = separator == -1 ? value : value.substr(0, separator);
       const description =
@@ -136,12 +183,10 @@ export default {
 
       const task = {
         name: head.split("[")[0].trim(),
-        description: description,
+        description,
         tags: [],
       };
-      if (task.name.length == 0) {
-        return;
-      }
+      if (task.name.length == 0) return;
 
       const tags = head.split("[")[1];
       if (tags) {
@@ -159,15 +204,22 @@ export default {
     addTagsIfNew: function (tags) {
       const newTags = tags.filter((t) => !this.findTag(t));
       this.todos.tags = this.todos.tags.concat(
-        newTags.map((t) => ({ name: t, color: "var(--white)" }))
+        newTags.map((t, index) => ({
+          name: t,
+          // give a new tag a colour straight away instead of a grey chip
+          color: this.colors[(this.todos.tags.length + index) % this.colors.length],
+        }))
       );
     },
     completeTask: function (index) {
       const task = this.todos.active.splice(index, 1)[0];
-      if (task) {
-        this.todos.completed.push(task);
-      }
+      if (task) this.todos.completed.push(task);
       // completing a task used to be lost on the next reload
+      this.storeToLocalStorage();
+    },
+    restoreTask: function (index) {
+      const task = this.todos.completed.splice(index, 1)[0];
+      if (task) this.todos.active.push(task);
       this.storeToLocalStorage();
     },
   },
@@ -178,102 +230,229 @@ export default {
 </script>
 
 <style>
-.todo-name,
-.todo-tags,
-.todo-complete {
-  display: inline;
-}
-
-.todo-complete {
-  float: right;
-  cursor: pointer;
-}
-
 .todo-wrapper {
-  opacity: 0.95;
-  height: 100%;
-  position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  position: relative;
   overflow: hidden;
+  font-size: 0.88rem;
+}
+
+.todo-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+}
+
+.todo-title {
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.todo-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-done-toggle {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.66rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.todo-done-toggle:hover,
+.todo-done-toggle.active {
+  color: var(--green);
+  border-color: var(--green);
 }
 
 .todo-list {
   flex: 1;
-  overflow-y: auto;
-  scrollbar-width: none;
   min-height: 0;
+  overflow-y: auto;
+}
+
+.todo-empty {
+  margin: 1.2rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.todo-empty span {
+  opacity: 0.75;
+  font-size: 0.72rem;
+}
+
+.todo-empty code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--accent_3);
 }
 
 .todo-entry {
-  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0.1rem 0.45rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.todo-title {
-  text-transform: uppercase;
-  margin-bottom: 1rem;
+.todo-entry:last-child {
+  border-bottom: none;
+}
+
+.todo-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: none;
+  color: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.todo-check:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.todo-check.done {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--bg);
+}
+
+.todo-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.todo-name {
+  overflow-wrap: anywhere;
 }
 
 .todo-text {
-  font-size: 0.8rem;
+  grid-column: 2;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.todo-entry.completed .todo-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.todo-divider {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 .tag {
-  color: var(--dark);
-  font-size: 0.8rem;
-  padding: 0.1rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--bg);
+  font-size: 0.66rem;
   cursor: pointer;
-  margin-right: 0.3rem;
-  border-radius: 3px;
+  transition: box-shadow 0.15s ease;
+}
+
+.tag.picking {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px currentColor;
 }
 
 .todo-prompt {
+  flex: none;
   display: flex;
   align-items: center;
-  width: 100%;
-  height: 22px;
+  gap: 0.4rem;
   margin-top: 0.5rem;
-  overflow: hidden;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  transition: color 0.16s ease;
+}
+
+.todo-prompt:focus-within {
+  color: var(--green);
 }
 
 .todo-prompt input {
-  flex-grow: 1;
-  background: none;
+  flex: 1;
+  min-width: 0;
   border: none;
-  margin-left: 0.3rem;
+  background: none;
   color: var(--fg);
   font-family: inherit;
+  font-size: 0.82rem;
+  caret-color: var(--accent_2);
 }
 
 .color-picker {
-  display: flex;
-  opacity: 0;
-  z-index: 1;
-  pointer-events: none;
   position: absolute;
-  bottom: 0;
   left: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
   width: 100%;
-  transition: opacity 0.6s;
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .color-picker.open {
   opacity: 1;
+  transform: translateY(0);
   pointer-events: auto;
 }
 
 .color {
-  height: 20px;
-  width: 40px;
-  display: inline-block;
-  cursor: pointer;
+  height: 24px;
   flex-grow: 1;
+  cursor: pointer;
+  transition: flex-grow 0.15s ease;
 }
 
-.todo-prompt-label {
-  margin-right: 0.2rem;
-  padding: 0 0.2rem;
-  background-color: var(--green);
-  color: var(--dark);
+.color:hover {
+  flex-grow: 1.6;
 }
 </style>
