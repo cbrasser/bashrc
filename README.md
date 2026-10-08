@@ -117,6 +117,9 @@ available commands:
 - help: list the available commands
 - clear: clear stdout
 
+The shell keeps its scrollback: every command stays on screen above the prompt
+with what it printed, up to a hundred entries, and `clear` empties it.
+
 Bookmark urls may be entered without a protocol, `https://` is added
 automatically. Besides tab completion, the up and down arrow keys cycle through
 the command history.
@@ -142,19 +145,28 @@ keys or with 'j' and 'k'.
 - input 'd' to go into 'deletion' mode: All (with 'd') selected elements will be deleted uppon pressing 'p'. Directories can only be deleted if they are empty.
 - input 'esc' to leave the input prompt or deletion mode, if one of them is open or to cancel the filter applied by searching.
 
-The status bar at the bottom displays the path of the current working directory as well as the position of the selected element and the currently active filter.
+The path at the top is a breadcrumb, clicking one of its segments jumps
+straight up to that directory. The status bar at the bottom shows the position
+in the listing and, for the selected entry, where it points: the url of a
+bookmark or how many items a folder holds. While entries are marked for
+deletion it counts those instead.
 
 ### weather 
 
-Just a tiny applet that displays local weather information. you can set your
-city in the settings widget. It uses the open-meteo api, which needs no
-account and no api key.
+Current conditions for your city, with what it feels like, wind and humidity,
+and a three day forecast. Set the city in the settings; it refreshes itself
+every twenty minutes and on the button in its corner. It uses the open-meteo
+api, which needs no account and no api key.
 
 ###  todo
 
 a tiny todo tracker. todos store a name and a description of a task, as well as
 0 to several tags for marking tasks that belong to the same category (work, private,
-university, some project, whatever). You can color-code the tags by clicking on them and selecting a color in the color strip.
+university, some project, whatever). A new tag is given a colour from the theme
+straight away; click it to pick a different one from the colour strip.
+
+Ticking a task moves it to a done list that is folded away behind the counter
+in the header, and clicking it there puts it back.
 
 
 ### Settings

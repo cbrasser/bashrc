@@ -48,6 +48,8 @@ const ICONS = {
   plus: ['M12 5v14', 'M5 12h14'],
   trash: ['M4 7h16', 'M9 7V5h6v2', 'M6 7l1 13h10l1-13'],
   search: ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M21 21l-4.5-4.5'],
+  refresh: ['M21 12a9 9 0 1 1-2.6-6.4', 'M21 4v5h-5'],
+  archive: ['M3 8h18v12H3z', 'M3 4h18v4H3z', 'M10 12h4'],
 };
 
 const CIRCLES = {

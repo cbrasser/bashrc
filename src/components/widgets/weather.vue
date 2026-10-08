@@ -1,18 +1,41 @@
 <template>
   <div class="weather">
-    <div class="weather-head">
+    <header class="weather-head">
       <span class="weather-city">{{ city }}</span>
-      <span class="weather-state" v-if="weatherData.main">{{ phrase }}</span>
-    </div>
+      <button
+        class="weather-refresh"
+        :class="{ spinning: loading }"
+        title="refresh"
+        v-on:click="getWeatherData"
+      >
+        <wm-icon name="refresh" :size="12" />
+      </button>
+    </header>
 
     <p class="weather-error" v-if="error">{{ error }}</p>
 
-    <template v-else-if="weatherData.main">
-      <div class="weather-body">
-        <wm-icon :name="icon" :size="48" class="weather-icon" />
+    <template v-else-if="current.main">
+      <div class="weather-now">
+        <wm-icon :name="iconFor(current.main)" :size="44" class="weather-icon" />
         <div class="weather-temp">
-          <strong>{{ weatherData.temp }}°</strong>
-          <span>feels like {{ weatherData.tempFeelsLike }}°</span>
+          <strong>{{ current.temp }}°</strong>
+          <span class="weather-state">{{ phraseFor(current.main) }}</span>
+        </div>
+      </div>
+
+      <div class="weather-facts">
+        <span><i>feels</i>{{ current.feelsLike }}°</span>
+        <span><i>wind</i>{{ current.wind }} km/h</span>
+        <span><i>hum</i>{{ current.humidity }}%</span>
+      </div>
+
+      <div class="weather-forecast" v-if="forecast.length">
+        <div class="forecast-day" v-for="day in forecast" :key="day.date">
+          <span class="forecast-name">{{ day.label }}</span>
+          <wm-icon :name="iconFor(day.main)" :size="16" />
+          <span class="forecast-range">
+            <b>{{ day.max }}°</b><i>{{ day.min }}°</i>
+          </span>
         </div>
       </div>
     </template>
@@ -57,6 +80,9 @@ const ICONS = {
   Thunderstorm: "bolt",
 };
 
+const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const REFRESH_MINUTES = 20;
+
 export default {
   name: "weather",
   components: { wmIcon },
@@ -64,54 +90,83 @@ export default {
     city: String,
   },
   data() {
-    return { weatherData: {}, error: "", timer: null };
-  },
-  computed: {
-    phrase() {
-      return PHRASES[this.weatherData.main] || "";
-    },
-    icon() {
-      return ICONS[this.weatherData.main] || "cloud";
-    },
+    return {
+      current: {},
+      forecast: [],
+      error: "",
+      loading: false,
+      debounce: null,
+      interval: null,
+    };
   },
   watch: {
     // the city is bound to a text field, so wait for typing to settle
     city() {
-      clearTimeout(this.timer);
-      this.timer = setTimeout(this.getWeatherData, 600);
+      clearTimeout(this.debounce);
+      this.debounce = setTimeout(this.getWeatherData, 600);
     },
   },
   methods: {
+    phraseFor(main) {
+      return PHRASES[main] || "";
+    },
+    iconFor(main) {
+      return ICONS[main] || "cloud";
+    },
     async getWeatherData() {
-      if (!this.city) return;
+      if (!this.city || this.loading) return;
       const city = this.city;
+      this.loading = true;
       try {
         const location = await this.geocode(city);
         if (!location) {
           this.error = `unknown city: ${city}`;
-          this.weatherData = {};
+          this.current = {};
+          this.forecast = [];
           return;
         }
         const response = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}` +
-            `&longitude=${location.longitude}` +
-            `&current=temperature_2m,apparent_temperature,weather_code`
+          "https://api.open-meteo.com/v1/forecast" +
+            `?latitude=${location.latitude}&longitude=${location.longitude}` +
+            "&current=temperature_2m,apparent_temperature,weather_code," +
+            "relative_humidity_2m,wind_speed_10m" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+            "&forecast_days=4&timezone=auto"
         );
         if (!response.ok) throw new Error(response.statusText);
         const json = await response.json();
         // a slow answer for a previous city must not overwrite the current one
         if (city !== this.city) return;
+
         this.error = "";
-        this.weatherData = {
+        this.current = {
           main: WEATHER_CODES[json.current.weather_code] || "Clouds",
           temp: Math.round(json.current.temperature_2m),
-          tempFeelsLike: Math.round(json.current.apparent_temperature),
+          feelsLike: Math.round(json.current.apparent_temperature),
+          humidity: Math.round(json.current.relative_humidity_2m),
+          wind: Math.round(json.current.wind_speed_10m),
         };
+        this.forecast = this.buildForecast(json.daily);
       } catch (e) {
         console.error(e);
         this.error = "could not reach the weather service";
+      } finally {
+        this.loading = false;
       }
     },
+
+    /* The daily block starts with today, which the big number already shows. */
+    buildForecast(daily) {
+      if (!daily || !daily.time) return [];
+      return daily.time.slice(1).map((date, index) => ({
+        date,
+        label: DAYS[new Date(date).getDay()],
+        main: WEATHER_CODES[daily.weather_code[index + 1]] || "Clouds",
+        max: Math.round(daily.temperature_2m_max[index + 1]),
+        min: Math.round(daily.temperature_2m_min[index + 1]),
+      }));
+    },
+
     async geocode(city) {
       const response = await fetch(
         "https://geocoding-api.open-meteo.com/v1/search" +
@@ -124,9 +179,11 @@ export default {
   },
   mounted() {
     this.getWeatherData();
+    this.interval = setInterval(this.getWeatherData, REFRESH_MINUTES * 60000);
   },
   beforeDestroy() {
-    clearTimeout(this.timer);
+    clearTimeout(this.debounce);
+    clearInterval(this.interval);
   },
 };
 </script>
@@ -140,10 +197,10 @@ export default {
 }
 
 .weather-head {
+  flex: none;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .weather-city {
@@ -151,41 +208,139 @@ export default {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.weather-state {
-  color: var(--accent_3);
-  font-size: 0.78rem;
-}
-
-.weather-body {
-  flex: 1;
+.weather-refresh {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 1.1rem;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.16s ease;
+}
+
+.weather:hover .weather-refresh {
+  opacity: 1;
+}
+
+.weather-refresh:hover {
+  background: var(--surface);
+  color: var(--accent_1);
+}
+
+.weather-refresh.spinning {
+  opacity: 1;
+  animation: weather-spin 1s linear infinite;
+}
+
+@keyframes weather-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.weather-now {
+  flex: 1;
   min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
 }
 
 .weather-icon {
-  color: var(--accent_1);
   flex: none;
+  color: var(--accent_1);
 }
 
 .weather-temp {
   display: flex;
   flex-direction: column;
   line-height: 1.1;
+  min-width: 0;
 }
 
 .weather-temp strong {
-  font-size: 2.1rem;
+  font-size: 2.2rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
-.weather-temp span {
+.weather-state {
+  color: var(--accent_3);
+  font-size: 0.76rem;
+}
+
+.weather-facts {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  padding: 0.4rem 0;
   font-size: 0.72rem;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-facts i {
+  margin-right: 0.35rem;
   color: var(--muted);
+  font-style: normal;
+}
+
+.weather-forecast {
+  flex: none;
+  display: flex;
+  gap: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.forecast-day {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.35rem 0;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  transition: background 0.14s ease;
+}
+
+.forecast-day:hover {
+  background: var(--surface);
+}
+
+.forecast-name {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.forecast-range {
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-range b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.forecast-range i {
+  margin-left: 3px;
+  font-style: normal;
+  opacity: 0.6;
 }
 
 .weather-error {
